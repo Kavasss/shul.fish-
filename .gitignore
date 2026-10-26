@@ -1,0 +1,15 @@
+node_modules/
+# Секреты и локальные настройки — никогда не коммитить
+.env
+.env.*
+!.env.example
+# База данных с заказами и данными клиентов
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+# Загруженные через админку фото
+uploads/
+npm-debug.log*
+.DS_Store

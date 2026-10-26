@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Админ-панель</title>
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/admin.css">
+</head>
+<body>
+  <!-- Вход -->
+  <div class="login" id="loginView" hidden>
+    <form class="login__box" id="loginForm">
+      <h2>Вход в админ-панель</h2>
+      <div class="form" style="padding:0">
+        <label>Логин<input name="login" autocomplete="username" required></label>
+        <label>Пароль<input name="password" type="password" autocomplete="current-password" required></label>
+        <p class="error" id="loginError" hidden></p>
+        <button class="btn btn--primary btn--block" type="submit">Войти</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Панель -->
+  <div id="adminView" hidden>
+    <header class="header">
+      <div class="container header__inner">
+        <a href="/admin" class="logo"><span class="logo__icon">🐟</span> Админ-панель</a>
+        <a href="/" target="_blank" rel="noopener">Открыть сайт ↗</a>
+        <button class="btn btn--sm" id="logoutBtn" type="button">Выйти</button>
+      </div>
+    </header>
+
+    <main class="container admin">
+      <div class="stats" id="stats"></div>
+
+      <nav class="tabs" id="adminTabs">
+        <button class="tab active" data-tab="orders" type="button">Заказы</button>
+        <button class="tab" data-tab="products" type="button">Товары и наличие</button>
+        <button class="tab" data-tab="settings" type="button">Доставка и настройки</button>
+      </nav>
+
+      <!-- Заказы -->
+      <section data-panel="orders">
+        <div class="toolbar">
+          <select class="input" id="statusFilter" aria-label="Фильтр по статусу"></select>
+          <a class="btn btn--sm" href="/api/admin/orders-export.csv">Скачать в Excel (CSV)</a>
+        </div>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>№</th><th>Дата</th><th>Клиент</th><th>Получение</th><th>Сумма</th><th>Статус</th><th></th></tr></thead>
+            <tbody id="ordersBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Товары -->
+      <section data-panel="products" hidden>
+        <div class="toolbar">
+          <button class="btn btn--primary btn--sm" id="addProductBtn" type="button">+ Добавить товар</button>
+          <span class="muted small">Покупатели не видят количество в наличии — оно только ограничивает, сколько можно заказать.</span>
+        </div>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th></th><th>Название</th><th>Категория</th><th>Цена</th><th>В наличии</th><th>На сайте</th><th></th></tr></thead>
+            <tbody id="productsBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Настройки -->
+      <section data-panel="settings" hidden>
+        <form class="form settings" id="settingsForm">
+          <label>Название магазина<input name="shop_name" maxlength="100"></label>
+          <label>Телефон магазина<input name="shop_phone" maxlength="50"></label>
+          <div class="form__row">
+            <label>Стоимость доставки, ₽<input name="delivery_cost" type="number" min="0" step="1"></label>
+            <label>Бесплатная доставка от, ₽ (0 — нет)<input name="free_delivery_from" type="number" min="0" step="1"></label>
+          </div>
+          <label>Минимальная сумма заказа, ₽<input name="min_order" type="number" min="0" step="1"></label>
+          <label>Адрес самовывоза<input name="pickup_address" maxlength="300"></label>
+          <label>Интервалы доставки (каждый с новой строки)<textarea name="delivery_slots" rows="4"></textarea></label>
+          <label>Описание доставки<textarea name="delivery_note" rows="2"></textarea></label>
+          <button class="btn btn--primary" type="submit">Сохранить</button>
+        </form>
+      </section>
+    </main>
+  </div>
+
+  <!-- Форма товара -->
+  <div class="modal" id="productModal" aria-hidden="true">
+    <form class="modal__panel" id="productForm" novalidate>
+      <div class="drawer__head">
+        <h2 id="productTitle">Товар</h2>
+        <button class="icon-btn" data-close type="button" aria-label="Закрыть">✕</button>
+      </div>
+      <div class="form">
+        <label>Название*<input name="name" required maxlength="150"></label>
+        <div class="form__row">
+          <label>Категория
+            <select name="category">
+              <option value="fresh">Свежая</option>
+              <option value="smoked">Копчёная</option>
+              <option value="salted">Солёная</option>
+            </select>
+          </label>
+          <label>Единица
+            <select name="unit"><option value="кг">кг</option><option value="шт">шт</option></select>
+          </label>
+        </div>
+        <label>Описание<textarea name="description" rows="3" maxlength="2000"></textarea></label>
+        <div class="form__row">
+          <label>Цена за единицу, ₽*<input name="price" type="number" min="0" step="1" required></label>
+          <label>В наличии (скрыто от покупателей)<input name="stock" type="number" min="0" step="0.1" required></label>
+        </div>
+        <div class="form__row">
+          <label>Шаг количества<input name="step" type="number" min="0.1" step="0.1" required></label>
+          <label>Минимальный заказ<input name="min_qty" type="number" min="0.1" step="0.1" required></label>
+        </div>
+        <label>Фото
+          <div class="photo">
+            <img id="photoPreview" alt="">
+            <div class="photo__ctrl">
+              <input type="file" id="photoFile" accept="image/jpeg,image/png,image/webp">
+              <input name="image" placeholder="или ссылка https://…" maxlength="500">
+            </div>
+          </div>
+        </label>
+        <div class="form__row">
+          <label>Порядок сортировки<input name="sort" type="number" step="1"></label>
+          <label class="check"><input type="checkbox" name="is_active"> Показывать на сайте</label>
+        </div>
+        <p class="error" id="productError" hidden></p>
+        <button class="btn btn--primary btn--block" type="submit">Сохранить</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Детали заказа -->
+  <div class="modal" id="orderModal" aria-hidden="true">
+    <div class="modal__panel modal__panel--wide">
+      <div class="drawer__head">
+        <h2 id="orderTitle">Заказ</h2>
+        <button class="icon-btn" data-close type="button" aria-label="Закрыть">✕</button>
+      </div>
+      <div class="form" id="orderDetails"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+  <script src="/common.js"></script>
+  <script src="/admin.js"></script>
+</body>
+</html>
