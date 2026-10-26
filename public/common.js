@@ -1,11 +1,16 @@
 // Общие функции для витрины и админки
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const money = (n) => `${Math.round(n).toLocaleString('ru-RU')} ₽`;
-const fmtQty = (q) => String(Math.round(q * 1000) / 1000).replace('.', ',');
+// Локаль: на витрине — выбранный язык, в админке — польская
+const curLocale = () => (typeof LANG !== 'undefined' ? LOCALES[LANG] : 'pl-PL');
+// Суммы приходят с сервера в грошах
+// Знак валюты везде «zł», разделители — по языку
+const money = (grosze) => `${new Intl.NumberFormat(curLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(grosze / 100)} zł`;
+const fmtQty = (q) => new Intl.NumberFormat(curLocale(), { maximumFractionDigits: 3 }).format(q);
 const $ = (sel, root = document) => root.querySelector(sel);
 
 async function api(url, options = {}) {
-  const opts = { ...options, headers: { 'X-Requested-With': 'fetch', ...(options.headers || {}) } };
+  const lang = typeof LANG !== 'undefined' ? { 'X-Lang': LANG } : {};
+  const opts = { ...options, headers: { 'X-Requested-With': 'fetch', ...lang, ...(options.headers || {}) } };
   if (opts.body && typeof opts.body !== 'string' && !(opts.body instanceof Blob)) {
     opts.body = JSON.stringify(opts.body);
     opts.headers['Content-Type'] = 'application/json';

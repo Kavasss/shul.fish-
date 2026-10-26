@@ -6,6 +6,8 @@ let category = 'all';
 let cart = loadCart(); // [{id, qty}]
 let cartView = { items: [], items_total: 0, delivery_cost: 0 };
 
+const unit = (u) => t(u === 'pcs' ? 'unit_pcs' : 'unit_kg');
+
 function loadCart() {
   try { return JSON.parse(localStorage.getItem(CART_KEY)) || []; } catch { return []; }
 }
@@ -14,47 +16,65 @@ function saveCart() {
 }
 
 async function init() {
+  $('#langSwitch').innerHTML = Object.entries(LANG_LABELS)
+    .map(([code, label]) => `<button type="button" data-lang="${code}">${label}</button>`).join('');
+  applyI18n();
   [settings, products] = await Promise.all([api('/api/settings'), api('/api/products')]);
-  document.title = `${settings.shop_name} — свежая, копчёная и солёная рыба с доставкой`;
   $('#footerName').textContent = settings.shop_name;
   $('#year').textContent = new Date().getFullYear();
   $('#shopPhone').textContent = settings.shop_phone;
   $('#shopPhone').href = `tel:${settings.shop_phone.replace(/[^\d+]/g, '')}`;
-  const free = settings.free_delivery_from ? `, бесплатно от ${money(settings.free_delivery_from)}` : '';
-  $('#deliveryInfo').textContent = `Доставка ${money(settings.delivery_cost)}${free}`;
-  $('#infoCourier').textContent = `${settings.delivery_note} Стоимость — ${money(settings.delivery_cost)}${free}.`;
-  $('#infoPickup').textContent = `Бесплатно: ${settings.pickup_address}`;
-  $('#pickupAddr').textContent = `Адрес самовывоза: ${settings.pickup_address}`;
-  renderProducts();
+  renderAll();
   await syncCart();
 }
+
+// Перерисовка всего, что зависит от языка
+function renderAll() {
+  applyI18n();
+  if (!settings.shop_name) return;
+  const free = settings.free_delivery_from ? t('free_from', { sum: money(settings.free_delivery_from) }) : '';
+  $('#deliveryInfo').textContent = t('delivery_info', { cost: money(settings.delivery_cost) }) + free;
+  $('#infoCourier').textContent = t('courier_info', { note: tr(settings.delivery_note), cost: money(settings.delivery_cost), free });
+  $('#infoPickup').textContent = t('pickup_info', { addr: settings.pickup_address });
+  $('#pickupAddr').textContent = t('pickup_addr', { addr: settings.pickup_address });
+  renderProducts();
+  renderCart();
+}
+
+$('#langSwitch').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-lang]');
+  if (!btn) return;
+  setLang(btn.dataset.lang);
+  renderAll();
+});
 
 // ---------- Каталог ----------
 
 function renderProducts() {
   const list = products.filter((p) => category === 'all' || p.category === category);
   const el = $('#products');
-  if (!list.length) { el.innerHTML = '<p class="muted">В этой категории пока нет товаров.</p>'; return; }
+  if (!list.length) { el.innerHTML = `<p class="muted">${esc(t('no_items_cat'))}</p>`; return; }
   el.innerHTML = list.map((p) => {
     const inCart = cart.find((c) => c.id === p.id);
+    const name = tr(p.name);
     const action = !p.available
-      ? '<span class="badge badge--out">Нет в наличии</span>'
+      ? `<span class="badge badge--out">${esc(t('out_of_stock'))}</span>`
       : inCart
         ? `<div class="stepper" data-id="${p.id}">
-             <button type="button" data-act="dec" aria-label="Меньше">−</button>
-             <span>${fmtQty(inCart.qty)} ${esc(p.unit)}</span>
-             <button type="button" data-act="inc" aria-label="Больше">+</button>
+             <button type="button" data-act="dec" aria-label="${esc(t('less'))}">−</button>
+             <span>${fmtQty(inCart.qty)} ${esc(unit(p.unit))}</span>
+             <button type="button" data-act="inc" aria-label="${esc(t('more'))}">+</button>
            </div>`
         : `<button class="btn btn--primary btn--add" type="button" data-add="${p.id}">
-             <span aria-hidden="true">+</span> В корзину</button>`;
+             <span aria-hidden="true">+</span> ${esc(t('add_to_cart'))}</button>`;
     return `
       <article class="card${p.available ? '' : ' card--out'}${inCart ? ' card--in' : ''}">
-        <div class="card__img">${p.image ? `<img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy">` : ''}
-          <span class="card__cat card__cat--${p.category}">${esc(settings.categories[p.category])}</span></div>
+        <div class="card__img">${p.image ? `<img src="${esc(p.image)}" alt="${esc(name)}" loading="lazy">` : ''}
+          <span class="card__cat card__cat--${p.category}">${esc(t(`cat_${p.category}`))}</span></div>
         <div class="card__body">
-          <h3>${esc(p.name)}</h3>
-          <p class="card__desc">${esc(p.description)}</p>
-          <div class="price">${money(p.price)}<small> / ${esc(p.unit)}</small></div>
+          <h3>${esc(name)}</h3>
+          <p class="card__desc">${esc(tr(p.description))}</p>
+          <div class="price">${money(p.price)}<small> / ${esc(unit(p.unit))}</small></div>
           <div class="card__foot">${action}</div>
         </div>
       </article>`;
@@ -65,7 +85,7 @@ $('#tabs').addEventListener('click', (e) => {
   const btn = e.target.closest('.tab');
   if (!btn) return;
   category = btn.dataset.cat;
-  document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t === btn));
+  document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('active', x === btn));
   renderProducts();
 });
 
@@ -105,13 +125,12 @@ async function syncCart(changedId) {
   const next = [];
   for (const i of cartView.items) {
     if (i.removed || i.unavailable) {
-      if (i.id === changedId || !changedId) toast(i.name ? `«${i.name}» сейчас нет в наличии` : 'Товар больше не продаётся', true);
-      // обновим карточку, если товар закончился
+      if (i.id === changedId || !changedId) toast(i.name ? t('unavailable', { name: tr(i.name) }) : t('not_sold'), true);
       const p = products.find((x) => x.id === i.id);
       if (p && i.unavailable) p.available = false;
       continue;
     }
-    if (i.limited && i.id === changedId) toast(`Больше «${i.name}» заказать сейчас нельзя`);
+    if (i.limited && i.id === changedId) toast(t('limited', { name: tr(i.name) }));
     next.push({ id: i.id, qty: i.qty });
   }
   cart = next;
@@ -127,34 +146,34 @@ function renderCart() {
   $('#cartCount').hidden = count === 0;
   const box = $('#cartItems');
   if (!count) {
-    box.innerHTML = '<p class="muted">Корзина пуста</p>';
+    box.innerHTML = `<p class="muted">${esc(t('cart_empty'))}</p>`;
   } else {
     box.innerHTML = cartView.items.map((i) => `
       <div class="cart-item">
         ${i.image ? `<img src="${esc(i.image)}" alt="">` : '<div></div>'}
         <div>
-          <div class="cart-item__name">${esc(i.name)}</div>
-          <div class="muted small">${money(i.price)} / ${esc(i.unit)}</div>
+          <div class="cart-item__name">${esc(tr(i.name))}</div>
+          <div class="muted small">${money(i.price)} / ${esc(unit(i.unit))}</div>
           <div class="stepper stepper--small" data-id="${i.id}">
-            <button type="button" data-act="dec" aria-label="Меньше">−</button>
-            <span>${fmtQty(i.qty)} ${esc(i.unit)}</span>
-            <button type="button" data-act="inc" aria-label="Больше">+</button>
+            <button type="button" data-act="dec" aria-label="${esc(t('less'))}">−</button>
+            <span>${fmtQty(i.qty)} ${esc(unit(i.unit))}</span>
+            <button type="button" data-act="inc" aria-label="${esc(t('more'))}">+</button>
           </div>
         </div>
         <div class="cart-item__right">
           <b>${money(i.sum)}</b>
-          <button class="link-btn" type="button" data-remove="${i.id}">Удалить</button>
+          <button class="link-btn" type="button" data-remove="${i.id}">${esc(t('remove'))}</button>
         </div>
       </div>`).join('');
   }
   $('#cartTotal').textContent = money(cartView.items_total);
   const minOrder = settings.min_order || 0;
   const hints = [];
-  if (count && cartView.items_total < minOrder) hints.push(`Минимальная сумма заказа — ${money(minOrder)}`);
-  if (settings.free_delivery_from && cartView.items_total < settings.free_delivery_from && count) {
-    hints.push(`До бесплатной доставки: ${money(settings.free_delivery_from - cartView.items_total)}`);
+  if (count && cartView.items_total < minOrder) hints.push(t('min_order_hint', { sum: money(minOrder) }));
+  if (count && settings.free_delivery_from && cartView.items_total < settings.free_delivery_from) {
+    hints.push(t('free_left', { sum: money(settings.free_delivery_from - cartView.items_total) }));
   }
-  hints.push('Вес рыбы может немного отличаться, итоговая сумма уточняется при подтверждении заказа.');
+  hints.push(t('weight_note'));
   $('#cartHint').textContent = hints.join('. ');
   $('#checkoutBtn').disabled = !count || cartView.items_total < minOrder;
   renderSummary();
@@ -175,9 +194,8 @@ function isoDate(d) {
 
 function setupCheckout() {
   const date = form.delivery_date;
-  const today = new Date();
   const max = new Date(); max.setDate(max.getDate() + 14);
-  date.min = isoDate(today);
+  date.min = isoDate(new Date());
   date.max = isoDate(max);
   if (!date.value) {
     const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
@@ -203,7 +221,7 @@ function renderSummary() {
   const free = settings.free_delivery_from && cartView.items_total >= settings.free_delivery_from;
   const d = courier && !free ? settings.delivery_cost : 0;
   $('#sumItems').textContent = money(cartView.items_total);
-  $('#sumDelivery').textContent = d ? money(d) : 'бесплатно';
+  $('#sumDelivery').textContent = d ? money(d) : t('free');
   $('#sumTotal').textContent = money(cartView.items_total + d);
 }
 
@@ -232,7 +250,7 @@ form.addEventListener('submit', async (e) => {
     saveCart();
     form.reset();
     closeLayer($('#checkout'));
-    $('#successText').textContent = `Заказ №${res.id} на сумму ${money(res.total)} принят. Мы позвоним вам для подтверждения.`;
+    $('#successText').textContent = t('success_text', { id: res.id, sum: money(res.total) });
     openLayer($('#success'));
     products = await api('/api/products');
     await syncCart();
@@ -246,5 +264,5 @@ form.addEventListener('submit', async (e) => {
 });
 
 init().catch((e) => {
-  $('#products').innerHTML = `<p class="error">Не удалось загрузить каталог: ${esc(e.message)}</p>`;
+  $('#products').innerHTML = `<p class="error">${esc(t('load_error', { err: e.message }))}</p>`;
 });

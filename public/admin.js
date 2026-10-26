@@ -2,6 +2,13 @@
 const CATS = { fresh: 'Свежая', smoked: 'Копчёная', salted: 'Солёная' };
 const METHODS = { courier: 'Доставка', pickup: 'Самовывоз' };
 const PAYMENTS = { cash: 'Наличные', card: 'Карта' };
+const UNITS = { kg: 'кг', pcs: 'шт' };
+const LANGS = ['pl', 'en', 'ru', 'uk'];
+const LANG_NAMES = { pl: 'польский', en: 'английский', ru: 'русский', uk: 'украинский' };
+const MONEY_KEYS = ['delivery_cost', 'free_delivery_from', 'min_order'];
+// Название товара для админки: русский, иначе польский
+const pName = (n) => (n && typeof n === 'object' ? n.ru || n.pl || '' : String(n ?? ''));
+const toGrosze = (v) => Math.round(Number(String(v).replace(',', '.')) * 100);
 let STATUSES = { new: 'Новый', confirmed: 'Подтверждён', delivering: 'Доставляется', done: 'Выполнен', cancelled: 'Отменён' };
 let products = [];
 let editingId = null;
@@ -113,13 +120,14 @@ async function openOrder(id) {
       <dt>Получение</dt><dd>${METHODS[o.delivery_method]}${o.address ? `: ${esc(o.address)}` : ''}</dd>
       <dt>Когда</dt><dd>${esc(o.delivery_date)} ${esc(o.delivery_time)}</dd>
       <dt>Оплата</dt><dd>${PAYMENTS[o.payment_method]}</dd>
+      <dt>Язык клиента</dt><dd>${esc(LANG_NAMES[o.lang] || o.lang)}</dd>
       ${o.comment ? `<dt>Комментарий</dt><dd>${esc(o.comment)}</dd>` : ''}
     </dl>
     <div class="table-wrap">
       <table class="table">
         <thead><tr><th>Товар</th><th>Кол-во</th><th>Цена</th><th>Сумма</th></tr></thead>
         <tbody>
-          ${o.items.map((i) => `<tr><td>${esc(i.name)}</td><td class="nowrap">${fmtQty(i.qty)} ${esc(i.unit)}</td><td class="nowrap">${money(i.price)}</td><td class="nowrap">${money(i.sum)}</td></tr>`).join('')}
+          ${o.items.map((i) => `<tr><td>${esc(i.name)}</td><td class="nowrap">${fmtQty(i.qty)} ${esc(UNITS[i.unit] || i.unit)}</td><td class="nowrap">${money(i.price)}</td><td class="nowrap">${money(i.sum)}</td></tr>`).join('')}
           <tr><td colspan="3">Доставка</td><td>${money(o.delivery_cost)}</td></tr>
           <tr><td colspan="3"><b>Итого</b></td><td><b>${money(o.total)}</b></td></tr>
         </tbody>
@@ -153,13 +161,13 @@ async function loadProducts() {
   $('#productsBody').innerHTML = products.length ? products.map((p) => `
     <tr>
       <td>${p.image ? `<img src="${esc(p.image)}" alt="">` : ''}</td>
-      <td><b>${esc(p.name)}</b>${p.stock < p.min_qty ? '<br><span class="badge badge--out">нет в наличии</span>' : ''}</td>
+      <td><b>${esc(pName(p.name))}</b>${p.stock < p.min_qty ? '<br><span class="badge badge--out">нет в наличии</span>' : ''}</td>
       <td>${CATS[p.category]}</td>
-      <td class="nowrap">${money(p.price)} / ${esc(p.unit)}</td>
+      <td class="nowrap">${money(p.price)} / ${esc(UNITS[p.unit])}</td>
       <td>
         <div class="stock-cell">
           <input class="input stock-input" type="number" min="0" step="0.1" value="${p.stock}" data-stock="${p.id}" aria-label="В наличии">
-          ${esc(p.unit)}
+          ${esc(UNITS[p.unit])}
         </div>
       </td>
       <td><input type="checkbox" data-active="${p.id}" ${p.is_active ? 'checked' : ''} aria-label="Показывать на сайте"></td>
@@ -191,7 +199,7 @@ $('#productsBody').addEventListener('click', async (e) => {
   const del = e.target.closest('[data-del]');
   if (del) {
     const p = products.find((x) => x.id === Number(del.dataset.del));
-    if (!confirm(`Удалить «${p.name}»? Можно вместо этого просто скрыть товар с сайта.`)) return;
+    if (!confirm(`Удалить «${pName(p.name)}»? Можно вместо этого просто скрыть товар с сайта.`)) return;
     try {
       await adminApi(`/api/admin/products/${p.id}`, { method: 'DELETE' });
       toast('Товар удалён');
@@ -207,8 +215,13 @@ function openProduct(p) {
   editingId = p ? p.id : null;
   $('#productTitle').textContent = p ? 'Редактирование товара' : 'Новый товар';
   $('#productError').hidden = true;
-  const v = p || { name: '', category: 'fresh', unit: 'кг', description: '', price: '', stock: 0, step: 0.5, min_qty: 0.5, image: '', sort: 0, is_active: 1 };
-  for (const k of ['name', 'category', 'unit', 'description', 'price', 'stock', 'step', 'min_qty', 'image', 'sort']) pForm[k].value = v[k];
+  const v = p || { name: {}, category: 'fresh', unit: 'kg', description: {}, price: '', stock: 0, step: 0.5, min_qty: 0.5, image: '', sort: 0, is_active: 1 };
+  for (const k of ['category', 'unit', 'stock', 'step', 'min_qty', 'image', 'sort']) pForm[k].value = v[k];
+  pForm.price.value = v.price === '' ? '' : (v.price / 100).toFixed(2);
+  for (const l of LANGS) {
+    pForm[`name_${l}`].value = v.name[l] || '';
+    pForm[`description_${l}`].value = v.description[l] || '';
+  }
   pForm.is_active.checked = !!v.is_active;
   $('#photoFile').value = '';
   updatePreview();
@@ -223,7 +236,7 @@ pForm.image.addEventListener('input', updatePreview);
 
 // Для штучного товара шаг и минимум по умолчанию — 1
 pForm.unit.addEventListener('change', () => {
-  if (pForm.unit.value === 'шт') { pForm.step.value = 1; pForm.min_qty.value = 1; }
+  if (pForm.unit.value === 'pcs') { pForm.step.value = 1; pForm.min_qty.value = 1; }
 });
 
 $('#photoFile').addEventListener('change', async (e) => {
@@ -238,8 +251,14 @@ $('#photoFile').addEventListener('change', async (e) => {
 
 pForm.addEventListener('submit', async (e) => {
   e.preventDefault();
-  const body = Object.fromEntries(new FormData(pForm));
-  body.is_active = pForm.is_active.checked;
+  const f = Object.fromEntries(new FormData(pForm));
+  const body = {
+    name: Object.fromEntries(LANGS.map((l) => [l, f[`name_${l}`]])),
+    description: Object.fromEntries(LANGS.map((l) => [l, f[`description_${l}`]])),
+    category: f.category, unit: f.unit, price: toGrosze(f.price),
+    stock: f.stock, step: f.step, min_qty: f.min_qty, image: f.image, sort: f.sort,
+    is_active: pForm.is_active.checked,
+  };
   try {
     await adminApi(editingId ? `/api/admin/products/${editingId}` : '/api/admin/products', { method: editingId ? 'PUT' : 'POST', body });
     closeLayer($('#productModal'));
@@ -256,12 +275,20 @@ pForm.addEventListener('submit', async (e) => {
 const sForm = $('#settingsForm');
 async function loadSettings() {
   const s = await adminApi('/api/admin/settings');
-  for (const [k, v] of Object.entries(s)) if (sForm[k]) sForm[k].value = v;
+  for (const [k, v] of Object.entries(s)) {
+    if (MONEY_KEYS.includes(k)) sForm[k].value = (v / 100).toFixed(2);
+    else if (k === 'delivery_note') for (const l of LANGS) sForm[`delivery_note_${l}`].value = v[l] || '';
+    else if (sForm[k]) sForm[k].value = v;
+  }
 }
 sForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   try {
-    await adminApi('/api/admin/settings', { method: 'PUT', body: Object.fromEntries(new FormData(sForm)) });
+    const f = Object.fromEntries(new FormData(sForm));
+    const body = { shop_name: f.shop_name, shop_phone: f.shop_phone, pickup_address: f.pickup_address, delivery_slots: f.delivery_slots };
+    for (const k of MONEY_KEYS) body[k] = toGrosze(f[k]);
+    body.delivery_note = Object.fromEntries(LANGS.map((l) => [l, f[`delivery_note_${l}`]]));
+    await adminApi('/api/admin/settings', { method: 'PUT', body });
     toast('Настройки сохранены');
   } catch (ex) { toast(ex.message, true); }
 });

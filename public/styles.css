@@ -199,3 +199,14 @@ a { color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
+
+/* ---------- Переключатель языка ---------- */
+.lang { display: inline-flex; gap: 2px; padding: 3px; background: #eef2f6; border-radius: 999px; }
+.lang button { border: 0; background: transparent; font: inherit; font-size: 13px; font-weight: 800; color: var(--muted); padding: 6px 9px; border-radius: 999px; cursor: pointer; transition: background .15s, color .15s; }
+.lang button:hover { color: var(--text); }
+.lang button.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(7, 19, 31, .12); }
+@media (max-width: 600px) {
+  .header__inner { gap: 10px; }
+  .logo__text { font-size: 16px; }
+  .lang button { padding: 6px 7px; font-size: 12px; }
+}

@@ -1,4 +1,5 @@
 // Сервер интернет-магазина рыбы: каталог, корзина, оформление заказа с доставкой, админ-панель.
+// Валюта — польский злотый (PLN), все суммы внутри хранятся в грошах.
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
@@ -7,7 +8,9 @@ const express = require('express');
 // Секреты берутся из .env (файл не хранится в репозитории) или из переменных окружения
 try { process.loadEnvFile(path.join(__dirname, '.env')); } catch { /* .env может отсутствовать */ }
 
-const { db, getSettings, transaction, DEFAULT_SETTINGS } = require('./db');
+const {
+  db, getSettings, transaction, parseI18n, pickLang, LANGS, DEFAULT_SETTINGS, MONEY_SETTINGS, I18N_SETTINGS,
+} = require('./db');
 
 const PORT = Number(process.env.PORT) || 3000;
 const ADMIN_LOGIN = process.env.ADMIN_LOGIN || 'admin';
@@ -15,14 +18,46 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 const COOKIE_SECURE = process.env.COOKIE_SECURE === '1';
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
+const ADMIN_LANG = 'ru'; // язык админ-панели, уведомлений и выгрузки
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 if (!ADMIN_PASSWORD) console.warn('⚠  ADMIN_PASSWORD не задан в .env — вход в админ-панель отключён.');
 if (!process.env.SESSION_SECRET) console.warn('⚠  SESSION_SECRET не задан — сессии админа сбросятся при перезапуске.');
 
-const CATEGORIES = { fresh: 'Свежая', smoked: 'Копчёная', salted: 'Солёная' };
+const CATEGORIES = ['fresh', 'smoked', 'salted'];
 const STATUSES = { new: 'Новый', confirmed: 'Подтверждён', delivering: 'Доставляется', done: 'Выполнен', cancelled: 'Отменён' };
+const UNITS_RU = { kg: 'кг', pcs: 'шт' };
+
+// Сообщения для покупателя на его языке
+const MESSAGES = {
+  bad_cart: { pl: 'Nieprawidłowy koszyk', en: 'Invalid cart', ru: 'Некорректная корзина', uk: 'Некоректний кошик' },
+  name_required: { pl: 'Podaj imię', en: 'Please enter your name', ru: 'Укажите имя', uk: 'Вкажіть ім’я' },
+  phone_invalid: { pl: 'Podaj poprawny numer telefonu', en: 'Please enter a valid phone number', ru: 'Укажите корректный номер телефона', uk: 'Вкажіть коректний номер телефону' },
+  email_invalid: { pl: 'Nieprawidłowy e-mail', en: 'Invalid e-mail', ru: 'Некорректный e-mail', uk: 'Некоректний e-mail' },
+  address_required: { pl: 'Podaj adres dostawy', en: 'Please enter the delivery address', ru: 'Укажите адрес доставки', uk: 'Вкажіть адресу доставки' },
+  date_required: { pl: 'Wybierz datę', en: 'Please choose a date', ru: 'Выберите дату', uk: 'Оберіть дату' },
+  date_range: { pl: 'Data musi przypadać w ciągu najbliższych dwóch tygodni', en: 'The date must be within the next two weeks', ru: 'Дата должна быть в пределах двух недель', uk: 'Дата має бути в межах двох тижнів' },
+  time_required: { pl: 'Wybierz godzinę dostawy', en: 'Please choose a delivery time', ru: 'Выберите время доставки', uk: 'Оберіть час доставки' },
+  cart_empty: { pl: 'Koszyk jest pusty', en: 'Your cart is empty', ru: 'Корзина пуста', uk: 'Кошик порожній' },
+  not_sold: { pl: 'Produkt nie jest już dostępny', en: 'This product is no longer available', ru: 'Товар больше не продаётся', uk: 'Товар більше не продається' },
+  too_many: { pl: '„{name}”: nie można zamówić takiej ilości, zmniejsz ją', en: '“{name}”: this quantity is not available, please reduce it', ru: '«{name}»: столько заказать нельзя, уменьшите количество', uk: '«{name}»: стільки замовити не можна, зменште кількість' },
+  min_order: { pl: 'Minimalna wartość zamówienia to {sum}', en: 'Minimum order value is {sum}', ru: 'Минимальная сумма заказа — {sum}', uk: 'Мінімальна сума замовлення — {sum}' },
+  not_found: { pl: 'Nie znaleziono', en: 'Not found', ru: 'Не найдено', uk: 'Не знайдено' },
+  too_large: { pl: 'Zbyt duże żądanie', en: 'Request too large', ru: 'Слишком большой запрос', uk: 'Завеликий запит' },
+  bad_data: { pl: 'Nieprawidłowe dane', en: 'Invalid data', ru: 'Некорректные данные', uk: 'Некоректні дані' },
+  server_error: { pl: 'Błąd serwera', en: 'Server error', ru: 'Внутренняя ошибка сервера', uk: 'Внутрішня помилка сервера' },
+};
+const LOCALES = { pl: 'pl-PL', en: 'en-GB', ru: 'ru-RU', uk: 'uk-UA' };
+
+function msg(lang, key, params = {}) {
+  const text = MESSAGES[key][lang] || MESSAGES[key].pl;
+  return text.replace(/\{(\w+)\}/g, (_, k) => params[k] ?? '');
+}
+function fmtMoney(grosze, lang = 'pl') {
+  const n = new Intl.NumberFormat(LOCALES[lang] || 'pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(grosze / 100);
+  return `${n} zł`;
+}
 
 const app = express();
 app.disable('x-powered-by');
@@ -33,9 +68,12 @@ app.use((req, res, next) => {
     'Referrer-Policy': 'same-origin',
     'Content-Security-Policy': "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self'; frame-ancestors 'none'",
   });
+  // Язык покупателя: заголовок X-Lang от нашего JS
+  const lang = req.get('X-Lang');
+  req.lang = LANGS.includes(lang) ? lang : 'pl';
   next();
 });
-app.use(express.json({ limit: '100kb' }));
+app.use(express.json({ limit: '200kb' }));
 
 // ---------- Вспомогательные функции ----------
 
@@ -51,7 +89,7 @@ function maxOrderQty(p) {
   return round3(Math.floor(p.stock / p.step + 1e-9) * p.step);
 }
 
-// Приводит количество к шагу товара (вниз) и к минимуму
+// Приводит количество к шагу товара и к минимуму
 function normalizeQty(p, qty) {
   qty = Number(qty);
   if (!Number.isFinite(qty) || qty <= 0) return p.min_qty;
@@ -62,7 +100,7 @@ function normalizeQty(p, qty) {
 // Данные товара для покупателя — без остатка на складе
 function publicProduct(p) {
   return {
-    id: p.id, name: p.name, category: p.category, description: p.description,
+    id: p.id, name: parseI18n(p.name), category: p.category, description: parseI18n(p.description),
     price: p.price, unit: p.unit, step: p.step, min_qty: p.min_qty, image: p.image,
     available: maxOrderQty(p) >= p.min_qty,
   };
@@ -75,6 +113,10 @@ function deliveryCost(method, itemsTotal, s) {
   return Number(s.delivery_cost) || 0;
 }
 
+function deliverySlots(s) {
+  return s.delivery_slots.split('\n').map((x) => x.trim()).filter(Boolean);
+}
+
 function publicSettings(s) {
   return {
     shop_name: s.shop_name, shop_phone: s.shop_phone,
@@ -82,14 +124,16 @@ function publicSettings(s) {
     free_delivery_from: Number(s.free_delivery_from) || 0,
     min_order: Number(s.min_order) || 0,
     pickup_address: s.pickup_address,
-    delivery_slots: s.delivery_slots.split('\n').map((x) => x.trim()).filter(Boolean),
-    delivery_note: s.delivery_note,
+    delivery_slots: deliverySlots(s),
+    delivery_note: parseI18n(s.delivery_note),
+    currency: 'PLN',
+    languages: LANGS,
   };
 }
 
 // Проверяет корзину по текущему остатку: ограничивает количество, но не раскрывает сам остаток
-function checkCart(rawItems) {
-  if (!Array.isArray(rawItems)) throw new HttpError(400, 'Некорректная корзина');
+function checkCart(rawItems, lang) {
+  if (!Array.isArray(rawItems)) throw new HttpError(400, msg(lang, 'bad_cart'));
   const getP = db.prepare('SELECT * FROM products WHERE id = ? AND is_active = 1');
   const items = [];
   for (const raw of rawItems.slice(0, 100)) {
@@ -154,10 +198,8 @@ function requireAdmin(req, res, next) {
 // Простое ограничение попыток входа
 const loginAttempts = new Map();
 function tooManyAttempts(ip) {
-  const now = Date.now();
   const rec = loginAttempts.get(ip);
-  if (!rec || rec.until < now) return false;
-  return rec.count >= 10;
+  return !!rec && rec.until > Date.now() && rec.count >= 10;
 }
 function registerFail(ip) {
   const now = Date.now();
@@ -175,16 +217,16 @@ async function notifyTelegram(orderId) {
   const o = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
   const items = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(orderId);
   const text = [
-    `🐟 Новый заказ №${o.id}`,
+    `🐟 Новый заказ №${o.id} (язык: ${o.lang.toUpperCase()})`,
     `${o.customer_name}, ${o.phone}`,
     o.delivery_method === 'courier' ? `Доставка: ${o.address}` : 'Самовывоз',
     `${o.delivery_date} ${o.delivery_time}`.trim(),
     '',
-    ...items.map((i) => `• ${i.name} — ${i.qty} ${i.unit} = ${i.sum} ₽`),
+    ...items.map((i) => `• ${pickLang(i.name, ADMIN_LANG)} — ${i.qty} ${UNITS_RU[i.unit]} = ${fmtMoney(i.sum, ADMIN_LANG)}`),
     '',
-    `Итого: ${o.total} ₽`,
+    `Итого: ${fmtMoney(o.total, ADMIN_LANG)}`,
     o.comment ? `Комментарий: ${o.comment}` : '',
-  ].filter((x) => x !== null).join('\n');
+  ].join('\n');
   try {
     await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST',
@@ -199,7 +241,7 @@ async function notifyTelegram(orderId) {
 // ---------- Публичное API ----------
 
 app.get('/api/settings', (req, res) => {
-  res.json({ ...publicSettings(getSettings()), categories: CATEGORIES });
+  res.json(publicSettings(getSettings()));
 });
 
 app.get('/api/products', (req, res) => {
@@ -208,7 +250,7 @@ app.get('/api/products', (req, res) => {
 });
 
 app.post('/api/cart/check', (req, res) => {
-  const items = checkCart(req.body?.items);
+  const items = checkCart(req.body?.items, req.lang);
   const itemsTotal = items.reduce((s, i) => s + (i.sum || 0), 0);
   const s = getSettings();
   res.json({
@@ -219,6 +261,7 @@ app.post('/api/cart/check', (req, res) => {
 });
 
 app.post('/api/orders', (req, res) => {
+  const lang = req.lang;
   const b = req.body || {};
   const s = getSettings();
   const order = {
@@ -233,23 +276,23 @@ app.post('/api/orders', (req, res) => {
     comment: str(b.comment, 1000),
   };
 
-  if (order.customer_name.length < 2) throw new HttpError(400, 'Укажите имя');
+  if (order.customer_name.length < 2) throw new HttpError(400, msg(lang, 'name_required'));
   const digits = order.phone.replace(/\D/g, '');
-  if (digits.length < 10 || digits.length > 15) throw new HttpError(400, 'Укажите корректный номер телефона');
-  if (order.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(order.email)) throw new HttpError(400, 'Некорректный e-mail');
-  if (order.delivery_method === 'courier' && order.address.length < 5) throw new HttpError(400, 'Укажите адрес доставки');
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(order.delivery_date)) throw new HttpError(400, 'Выберите дату');
+  if (digits.length < 9 || digits.length > 15) throw new HttpError(400, msg(lang, 'phone_invalid'));
+  if (order.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(order.email)) throw new HttpError(400, msg(lang, 'email_invalid'));
+  if (order.delivery_method === 'courier' && order.address.length < 5) throw new HttpError(400, msg(lang, 'address_required'));
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(order.delivery_date)) throw new HttpError(400, msg(lang, 'date_required'));
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const date = new Date(order.delivery_date + 'T00:00:00');
   const maxDate = new Date(today); maxDate.setDate(maxDate.getDate() + 14);
-  if (Number.isNaN(date.getTime()) || date < today || date > maxDate) throw new HttpError(400, 'Дата должна быть в пределах двух недель');
-  const slots = publicSettings(s).delivery_slots;
+  if (Number.isNaN(date.getTime()) || date < today || date > maxDate) throw new HttpError(400, msg(lang, 'date_range'));
+  const slots = deliverySlots(s);
   if (order.delivery_method === 'courier' && slots.length && !slots.includes(order.delivery_time)) {
-    throw new HttpError(400, 'Выберите время доставки');
+    throw new HttpError(400, msg(lang, 'time_required'));
   }
-  if (order.delivery_method === 'pickup') order.address = '';
+  if (order.delivery_method === 'pickup') { order.address = ''; order.delivery_time = ''; }
 
-  if (!Array.isArray(b.items) || b.items.length === 0) throw new HttpError(400, 'Корзина пуста');
+  if (!Array.isArray(b.items) || b.items.length === 0) throw new HttpError(400, msg(lang, 'cart_empty'));
 
   const orderId = transaction(() => {
     const getP = db.prepare('SELECT * FROM products WHERE id = ? AND is_active = 1');
@@ -257,10 +300,10 @@ app.post('/api/orders', (req, res) => {
     const problems = [];
     for (const raw of b.items.slice(0, 100)) {
       const p = getP.get(Number(raw?.id));
-      if (!p) { problems.push({ id: Number(raw?.id), message: 'Товар больше не продаётся' }); continue; }
+      if (!p) { problems.push({ id: Number(raw?.id), message: msg(lang, 'not_sold') }); continue; }
       const qty = normalizeQty(p, raw.qty);
       if (qty > maxOrderQty(p)) {
-        problems.push({ id: p.id, message: `«${p.name}»: столько заказать нельзя, уменьшите количество` });
+        problems.push({ id: p.id, message: msg(lang, 'too_many', { name: pickLang(p.name, lang) }) });
         continue;
       }
       lines.push({ p, qty, sum: Math.round(qty * p.price) });
@@ -269,14 +312,14 @@ app.post('/api/orders', (req, res) => {
 
     const itemsTotal = lines.reduce((sum, l) => sum + l.sum, 0);
     const minOrder = Number(s.min_order) || 0;
-    if (itemsTotal < minOrder) throw new HttpError(400, `Минимальная сумма заказа — ${minOrder} ₽`);
+    if (itemsTotal < minOrder) throw new HttpError(400, msg(lang, 'min_order', { sum: fmtMoney(minOrder, lang) }));
     const dCost = deliveryCost(order.delivery_method, itemsTotal, s);
 
     const { lastInsertRowid } = db.prepare(`
-      INSERT INTO orders (customer_name, phone, email, delivery_method, address, delivery_date, delivery_time,
+      INSERT INTO orders (lang, customer_name, phone, email, delivery_method, address, delivery_date, delivery_time,
                           payment_method, comment, items_total, delivery_cost, total)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
-      order.customer_name, order.phone, order.email, order.delivery_method, order.address,
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      lang, order.customer_name, order.phone, order.email, order.delivery_method, order.address,
       order.delivery_date, order.delivery_time, order.payment_method, order.comment,
       itemsTotal, dCost, itemsTotal + dCost,
     );
@@ -294,7 +337,7 @@ app.post('/api/orders', (req, res) => {
   res.status(201).json({ id: o.id, total: o.total });
 });
 
-// ---------- Админ API ----------
+// ---------- Админ API (интерфейс на русском) ----------
 
 app.post('/api/admin/login', (req, res) => {
   const ip = req.ip;
@@ -321,13 +364,24 @@ app.get('/api/admin/me', (req, res) => res.json({ admin: isAdmin(req) }));
 const admin = express.Router();
 admin.use(requireAdmin);
 
+// Многоязычное поле из формы: {pl, en, ru, uk}
+function readI18n(v, max) {
+  const src = v && typeof v === 'object' ? v : {};
+  return Object.fromEntries(LANGS.map((l) => [l, str(src[l], max)]));
+}
+
+function adminProduct(p) {
+  return { ...p, name: parseI18n(p.name), description: parseI18n(p.description) };
+}
+
 function readProductInput(b) {
+  const name = readI18n(b.name, 150);
   const p = {
-    name: str(b.name, 150),
+    name: JSON.stringify(name),
     category: b.category,
-    description: str(b.description, 2000),
-    price: Math.round(Number(b.price)),
-    unit: b.unit === 'шт' ? 'шт' : 'кг',
+    description: JSON.stringify(readI18n(b.description, 2000)),
+    price: Math.round(Number(b.price)), // грош
+    unit: b.unit === 'pcs' ? 'pcs' : 'kg',
     step: round3(Number(b.step)),
     min_qty: round3(Number(b.min_qty)),
     stock: round3(Number(b.stock)),
@@ -335,8 +389,8 @@ function readProductInput(b) {
     is_active: b.is_active === false || b.is_active === 0 ? 0 : 1,
     sort: Math.round(Number(b.sort) || 0),
   };
-  if (!p.name) throw new HttpError(400, 'Укажите название');
-  if (!CATEGORIES[p.category]) throw new HttpError(400, 'Неверная категория');
+  if (!name.pl) throw new HttpError(400, 'Укажите название хотя бы на польском');
+  if (!CATEGORIES.includes(p.category)) throw new HttpError(400, 'Неверная категория');
   if (!Number.isFinite(p.price) || p.price < 0) throw new HttpError(400, 'Неверная цена');
   if (!Number.isFinite(p.step) || p.step <= 0) throw new HttpError(400, 'Шаг должен быть больше 0');
   if (!Number.isFinite(p.min_qty) || p.min_qty <= 0) throw new HttpError(400, 'Минимальный заказ должен быть больше 0');
@@ -346,7 +400,7 @@ function readProductInput(b) {
 }
 
 admin.get('/products', (req, res) => {
-  res.json(db.prepare('SELECT * FROM products ORDER BY sort, id').all());
+  res.json(db.prepare('SELECT * FROM products ORDER BY sort, id').all().map(adminProduct));
 });
 
 admin.post('/products', (req, res) => {
@@ -356,7 +410,7 @@ admin.post('/products', (req, res) => {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
     p.name, p.category, p.description, p.price, p.unit, p.step, p.min_qty, p.stock, p.image, p.is_active, p.sort,
   );
-  res.status(201).json(db.prepare('SELECT * FROM products WHERE id = ?').get(lastInsertRowid));
+  res.status(201).json(adminProduct(db.prepare('SELECT * FROM products WHERE id = ?').get(lastInsertRowid)));
 });
 
 admin.put('/products/:id', (req, res) => {
@@ -369,7 +423,7 @@ admin.put('/products/:id', (req, res) => {
     Number(req.params.id),
   );
   if (!r.changes) throw new HttpError(404, 'Товар не найден');
-  res.json(db.prepare('SELECT * FROM products WHERE id = ?').get(Number(req.params.id)));
+  res.json(adminProduct(db.prepare('SELECT * FROM products WHERE id = ?').get(Number(req.params.id))));
 });
 
 // Быстрое изменение наличия / видимости прямо из таблицы
@@ -386,7 +440,7 @@ admin.patch('/products/:id', (req, res) => {
   }
   const p = db.prepare('SELECT * FROM products WHERE id = ?').get(id);
   if (!p) throw new HttpError(404, 'Товар не найден');
-  res.json(p);
+  res.json(adminProduct(p));
 });
 
 admin.delete('/products/:id', (req, res) => {
@@ -408,7 +462,8 @@ admin.post('/upload', express.raw({ type: Object.keys(IMAGE_TYPES), limit: '5mb'
 function orderWithItems(id) {
   const o = db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
   if (!o) return null;
-  o.items = db.prepare('SELECT * FROM order_items WHERE order_id = ? ORDER BY id').all(id);
+  o.items = db.prepare('SELECT * FROM order_items WHERE order_id = ? ORDER BY id').all(id)
+    .map((i) => ({ ...i, name: pickLang(i.name, ADMIN_LANG) }));
   return o;
 }
 
@@ -454,38 +509,55 @@ admin.patch('/orders/:id', (req, res) => {
 });
 
 admin.get('/orders-export.csv', (req, res) => {
-  const rows = db.prepare(`
-    SELECT o.*, group_concat(i.name || ' x ' || i.qty || ' ' || i.unit, '; ') AS items
-    FROM orders o LEFT JOIN order_items i ON i.order_id = o.id
-    GROUP BY o.id ORDER BY o.id DESC`).all();
-  const cols = ['id', 'created_at', 'status', 'customer_name', 'phone', 'email', 'delivery_method', 'address',
+  const orders = db.prepare('SELECT * FROM orders ORDER BY id DESC').all();
+  const itemsOf = db.prepare('SELECT * FROM order_items WHERE order_id = ? ORDER BY id');
+  const cols = ['id', 'created_at', 'status', 'lang', 'customer_name', 'phone', 'email', 'delivery_method', 'address',
     'delivery_date', 'delivery_time', 'payment_method', 'items', 'items_total', 'delivery_cost', 'total', 'comment', 'admin_note'];
+  const zl = (g) => (g / 100).toFixed(2).replace('.', ',');
   const esc = (v) => {
     let s = String(v ?? '');
     if (/^[=@\t\r]|^[+-](?!\d)/.test(s)) s = "'" + s; // защита от формул в Excel
     return `"${s.replace(/"/g, '""')}"`;
   };
-  const csv = '﻿' + [cols.join(';'), ...rows.map((r) => cols.map((c) => esc(c === 'status' ? STATUSES[r.status] : r[c])).join(';'))].join('\r\n');
+  const lines = orders.map((o) => {
+    const row = {
+      ...o,
+      status: STATUSES[o.status],
+      items: itemsOf.all(o.id).map((i) => `${pickLang(i.name, ADMIN_LANG)} x ${i.qty} ${UNITS_RU[i.unit]}`).join('; '),
+      items_total: zl(o.items_total), delivery_cost: zl(o.delivery_cost), total: zl(o.total),
+    };
+    return cols.map((c) => esc(row[c])).join(';');
+  });
+  const csv = '﻿' + [cols.join(';'), ...lines].join('\r\n');
   res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="orders.csv"' });
   res.send(csv);
 });
 
-admin.get('/settings', (req, res) => res.json(getSettings()));
+admin.get('/settings', (req, res) => {
+  const s = getSettings();
+  for (const k of I18N_SETTINGS) s[k] = parseI18n(s[k]);
+  for (const k of MONEY_SETTINGS) s[k] = Number(s[k]) || 0;
+  res.json(s);
+});
 
 admin.put('/settings', (req, res) => {
   const b = req.body || {};
   const upd = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value');
   for (const key of Object.keys(DEFAULT_SETTINGS)) {
     if (b[key] === undefined) continue;
-    let v = str(String(b[key]), 2000);
-    if (['delivery_cost', 'free_delivery_from', 'min_order'].includes(key)) {
-      const num = Math.round(Number(v));
+    let v;
+    if (MONEY_SETTINGS.includes(key)) {
+      const num = Math.round(Number(b[key])); // грош
       if (!Number.isFinite(num) || num < 0) throw new HttpError(400, 'Суммы должны быть неотрицательными числами');
       v = String(num);
+    } else if (I18N_SETTINGS.includes(key)) {
+      v = JSON.stringify(readI18n(b[key], 2000));
+    } else {
+      v = str(String(b[key]), 2000);
     }
     upd.run(key, v);
   }
-  res.json(getSettings());
+  res.json({ ok: true });
 });
 
 admin.get('/stats', (req, res) => {
@@ -505,15 +577,15 @@ app.use('/uploads', express.static(UPLOAD_DIR, { maxAge: '30d' }));
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.use('/api', (req, res) => res.status(404).json({ error: 'Не найдено' }));
+app.use('/api', (req, res) => res.status(404).json({ error: msg(req.lang, 'not_found') }));
 
 // Обработка ошибок
 app.use((err, req, res, next) => {
   if (err instanceof HttpError) return res.status(err.status).json({ error: err.message, ...err.extra });
-  if (err.type === 'entity.too.large') return res.status(413).json({ error: 'Слишком большой запрос' });
-  if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'Некорректные данные' });
+  if (err.type === 'entity.too.large') return res.status(413).json({ error: msg(req.lang, 'too_large') });
+  if (err.type === 'entity.parse.failed') return res.status(400).json({ error: msg(req.lang, 'bad_data') });
   console.error(err);
-  res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+  res.status(500).json({ error: msg(req.lang, 'server_error') });
 });
 
-app.listen(PORT, () => console.log(`Магазин запущен: http://localhost:${PORT}  (админка: /admin)`));
+app.listen(PORT, () => console.log(`Shul.Fish запущен: http://localhost:${PORT}  (админка: /admin)`));
