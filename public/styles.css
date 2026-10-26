@@ -210,3 +210,28 @@ a { color: inherit; }
   .logo__text { font-size: 16px; }
   .lang button { padding: 6px 7px; font-size: 12px; }
 }
+
+/* ---------- Аккаунт покупателя ---------- */
+.account-btn { display: flex; align-items: center; gap: 7px; height: 44px; padding: 0 14px; border: 1.5px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--text); font: inherit; font-weight: 700; font-size: 15px; cursor: pointer; transition: border-color .15s, transform .15s; max-width: 200px; }
+.account-btn:hover { border-color: #cbd5e1; transform: translateY(-1px); }
+.account-btn__label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.account-btn.is-in { background: #eef6fc; border-color: #cfe6f7; }
+.modal__panel--auth { width: min(440px, 100%); }
+.hint-box { margin: 0; padding: 10px 14px; border-radius: var(--radius-sm); background: #eef6fc; font-size: 14px; font-weight: 600; }
+.link-btn--strong { color: var(--sea); font-weight: 800; font-size: 14px; }
+.auth-switch { justify-self: center; font-size: 14px; }
+.field-hint { font-weight: 500; }
+.form--flat { padding: 0; }
+.form--flat h3 { margin: 6px 0 0; font-size: 17px; }
+.orders { display: grid; gap: 12px; }
+.order-card { border: 1.5px solid var(--line); border-radius: 16px; padding: 14px 16px; display: grid; gap: 8px; }
+.order-card__head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; }
+.order-card__items { margin: 0; padding: 0; list-style: none; font-size: 14px; color: var(--muted); display: grid; gap: 2px; }
+.order-card__items li { display: flex; justify-content: space-between; gap: 12px; }
+.order-status { font-size: 13px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: #e0efff; color: #0e6ba8; }
+.order-status--confirmed { background: #fff4d6; color: #93650a; }
+.order-status--delivering { background: #efe6ff; color: #6b3fb8; }
+.order-status--done { background: #d1fae5; color: var(--ok); }
+.order-status--cancelled { background: #f1f5f9; color: var(--muted); }
+#accountTabs { justify-self: start; }
+@media (max-width: 600px) { .account-btn { padding: 0 12px; } .account-btn__label { display: none; } }

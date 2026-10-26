@@ -67,11 +67,29 @@ CREATE TABLE IF NOT EXISTS order_items (
 CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 
+-- Покупатели с личным кабинетом. Пароль хранится только в виде хеша scrypt.
+CREATE TABLE IF NOT EXISTS users (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  email         TEXT    NOT NULL UNIQUE COLLATE NOCASE,
+  password_hash TEXT    NOT NULL,
+  name          TEXT    NOT NULL DEFAULT '',
+  phone         TEXT    NOT NULL DEFAULT '',
+  address       TEXT    NOT NULL DEFAULT '',
+  session_ver   INTEGER NOT NULL DEFAULT 1, -- увеличивается при смене пароля, чтобы выкинуть старые сессии
+  created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS settings (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
 `);
+
+// Миграция: привязка заказа к покупателю (для баз, созданных до появления личного кабинета)
+if (!db.prepare('PRAGMA table_info(orders)').all().some((c) => c.name === 'user_id')) {
+  db.exec('ALTER TABLE orders ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE SET NULL');
+}
+db.exec('CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id)');
 
 // Настройки по умолчанию (меняются в админ-панели). Суммы — в грошах.
 const DEFAULT_SETTINGS = {

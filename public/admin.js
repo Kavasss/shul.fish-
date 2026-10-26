@@ -74,7 +74,8 @@ async function loadStats() {
     <div class="stat"><b>${s.new_orders}</b><span>новых заказов</span></div>
     <div class="stat"><b>${s.today_orders}</b><span>заказов сегодня</span></div>
     <div class="stat"><b>${money(s.today_revenue)}</b><span>выручка сегодня</span></div>
-    <div class="stat"><b>${s.out_of_stock}</b><span>товаров закончилось</span></div>`;
+    <div class="stat"><b>${s.out_of_stock}</b><span>товаров закончилось</span></div>
+    <div class="stat"><b>${s.customers}</b><span>зарегистрированных покупателей</span></div>`;
 }
 
 // ---------- Заказы ----------
@@ -115,6 +116,7 @@ async function openOrder(id) {
     <dl class="dl">
       <dt>Создан</dt><dd>${fmtDate(o.created_at)}</dd>
       <dt>Клиент</dt><dd>${esc(o.customer_name)}</dd>
+      <dt>Аккаунт</dt><dd>${o.user_email ? esc(o.user_email) : '<span class="muted">гость (без регистрации)</span>'}</dd>
       <dt>Телефон</dt><dd><a href="tel:${esc(o.phone)}">${esc(o.phone)}</a></dd>
       ${o.email ? `<dt>E-mail</dt><dd>${esc(o.email)}</dd>` : ''}
       <dt>Получение</dt><dd>${METHODS[o.delivery_method]}${o.address ? `: ${esc(o.address)}` : ''}</dd>

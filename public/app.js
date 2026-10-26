@@ -19,7 +19,7 @@ async function init() {
   $('#langSwitch').innerHTML = Object.entries(LANG_LABELS)
     .map(([code, label]) => `<button type="button" data-lang="${code}">${label}</button>`).join('');
   applyI18n();
-  [settings, products] = await Promise.all([api('/api/settings'), api('/api/products')]);
+  [settings, products] = await Promise.all([api('/api/settings'), api('/api/products'), loadUser()]);
   $('#footerName').textContent = settings.shop_name;
   $('#year').textContent = new Date().getFullYear();
   $('#shopPhone').textContent = settings.shop_phone;
@@ -39,6 +39,7 @@ function renderAll() {
   $('#pickupAddr').textContent = t('pickup_addr', { addr: settings.pickup_address });
   renderProducts();
   renderCart();
+  renderAccountUi();
 }
 
 $('#langSwitch').addEventListener('click', (e) => {
@@ -205,6 +206,7 @@ function setupCheckout() {
   if (!sel.options.length) {
     sel.innerHTML = settings.delivery_slots.map((s) => `<option>${esc(s)}</option>`).join('');
   }
+  fillCheckoutFromUser();
   updateMethod();
 }
 

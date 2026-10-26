@@ -179,3 +179,53 @@ function applyI18n() {
   document.querySelectorAll('[data-i18n-aria]').forEach((el) => { el.setAttribute('aria-label', t(el.dataset.i18nAria)); });
   document.querySelectorAll('[data-lang]').forEach((el) => el.classList.toggle('active', el.dataset.lang === LANG));
 }
+
+// Вход, регистрация и личный кабинет
+Object.assign(I18N.pl, {
+  sign_in: 'Zaloguj się', sign_up: 'Rejestracja', account: 'Konto', logout: 'Wyloguj się',
+  password: 'Hasło*', password_hint: 'co najmniej 8 znaków', create_account: 'Załóż konto',
+  auth_switch_reg: 'Nie masz konta? Zarejestruj się', auth_switch_login: 'Masz już konto? Zaloguj się',
+  auth_why: 'Konto zapamięta Twoje dane do dostawy i pokaże historię zamówień.',
+  hello: 'Dzień dobry, {name}!', profile: 'Moje dane', my_orders: 'Moje zamówienia', address_default: 'Adres dostawy',
+  save: 'Zapisz', saved: 'Zapisano', change_password: 'Zmiana hasła', current_password: 'Obecne hasło',
+  new_password: 'Nowe hasło', password_changed: 'Hasło zostało zmienione', no_orders: 'Nie masz jeszcze zamówień.',
+  order_n: 'Zamówienie nr {id}', checkout_login: 'Masz konto? Zaloguj się, a formularz wypełni się automatycznie.',
+  logged_in: 'Zalogowano', logged_out: 'Wylogowano', signed_up: 'Konto zostało utworzone',
+  status_new: 'Nowe', status_confirmed: 'Potwierdzone', status_delivering: 'W dostawie', status_done: 'Zrealizowane', status_cancelled: 'Anulowane',
+});
+Object.assign(I18N.en, {
+  sign_in: 'Sign in', sign_up: 'Sign up', account: 'Account', logout: 'Sign out',
+  password: 'Password*', password_hint: 'at least 8 characters', create_account: 'Create account',
+  auth_switch_reg: 'No account yet? Sign up', auth_switch_login: 'Already have an account? Sign in',
+  auth_why: 'Your account remembers your delivery details and shows your order history.',
+  hello: 'Hello, {name}!', profile: 'My details', my_orders: 'My orders', address_default: 'Delivery address',
+  save: 'Save', saved: 'Saved', change_password: 'Change password', current_password: 'Current password',
+  new_password: 'New password', password_changed: 'Password changed', no_orders: 'You have no orders yet.',
+  order_n: 'Order #{id}', checkout_login: 'Have an account? Sign in and the form will fill itself in.',
+  logged_in: 'Signed in', logged_out: 'Signed out', signed_up: 'Account created',
+  status_new: 'New', status_confirmed: 'Confirmed', status_delivering: 'Out for delivery', status_done: 'Completed', status_cancelled: 'Cancelled',
+});
+Object.assign(I18N.ru, {
+  sign_in: 'Войти', sign_up: 'Регистрация', account: 'Кабинет', logout: 'Выйти',
+  password: 'Пароль*', password_hint: 'не короче 8 символов', create_account: 'Создать аккаунт',
+  auth_switch_reg: 'Нет аккаунта? Зарегистрируйтесь', auth_switch_login: 'Уже есть аккаунт? Войдите',
+  auth_why: 'Аккаунт запомнит данные для доставки и покажет историю заказов.',
+  hello: 'Здравствуйте, {name}!', profile: 'Мои данные', my_orders: 'Мои заказы', address_default: 'Адрес доставки',
+  save: 'Сохранить', saved: 'Сохранено', change_password: 'Смена пароля', current_password: 'Текущий пароль',
+  new_password: 'Новый пароль', password_changed: 'Пароль изменён', no_orders: 'У вас пока нет заказов.',
+  order_n: 'Заказ №{id}', checkout_login: 'Есть аккаунт? Войдите, и форма заполнится сама.',
+  logged_in: 'Вы вошли', logged_out: 'Вы вышли', signed_up: 'Аккаунт создан',
+  status_new: 'Новый', status_confirmed: 'Подтверждён', status_delivering: 'Доставляется', status_done: 'Выполнен', status_cancelled: 'Отменён',
+});
+Object.assign(I18N.uk, {
+  sign_in: 'Увійти', sign_up: 'Реєстрація', account: 'Кабінет', logout: 'Вийти',
+  password: 'Пароль*', password_hint: 'щонайменше 8 символів', create_account: 'Створити акаунт',
+  auth_switch_reg: 'Немає акаунта? Зареєструйтеся', auth_switch_login: 'Уже маєте акаунт? Увійдіть',
+  auth_why: 'Акаунт запам’ятає дані для доставки й покаже історію замовлень.',
+  hello: 'Вітаємо, {name}!', profile: 'Мої дані', my_orders: 'Мої замовлення', address_default: 'Адреса доставки',
+  save: 'Зберегти', saved: 'Збережено', change_password: 'Зміна пароля', current_password: 'Поточний пароль',
+  new_password: 'Новий пароль', password_changed: 'Пароль змінено', no_orders: 'У вас поки немає замовлень.',
+  order_n: 'Замовлення №{id}', checkout_login: 'Маєте акаунт? Увійдіть, і форма заповниться сама.',
+  logged_in: 'Ви увійшли', logged_out: 'Ви вийшли', signed_up: 'Акаунт створено',
+  status_new: 'Нове', status_confirmed: 'Підтверджене', status_delivering: 'Доставляється', status_done: 'Виконане', status_cancelled: 'Скасоване',
+});

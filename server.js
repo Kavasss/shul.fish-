@@ -18,6 +18,7 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 const COOKIE_SECURE = process.env.COOKIE_SECURE === '1';
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
+const USER_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // покупатель остаётся в аккаунте 30 дней
 const ADMIN_LANG = 'ru'; // язык админ-панели, уведомлений и выгрузки
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -46,6 +47,12 @@ const MESSAGES = {
   not_found: { pl: 'Nie znaleziono', en: 'Not found', ru: 'Не найдено', uk: 'Не знайдено' },
   too_large: { pl: 'Zbyt duże żądanie', en: 'Request too large', ru: 'Слишком большой запрос', uk: 'Завеликий запит' },
   bad_data: { pl: 'Nieprawidłowe dane', en: 'Invalid data', ru: 'Некорректные данные', uk: 'Некоректні дані' },
+  password_short: { pl: 'Hasło musi mieć co najmniej 8 znaków', en: 'Password must be at least 8 characters', ru: 'Пароль должен быть не короче 8 символов', uk: 'Пароль має бути не коротшим за 8 символів' },
+  email_taken: { pl: 'Konto z tym adresem e-mail już istnieje', en: 'An account with this e-mail already exists', ru: 'Аккаунт с таким e-mail уже существует', uk: 'Акаунт із таким e-mail уже існує' },
+  bad_credentials: { pl: 'Nieprawidłowy e-mail lub hasło', en: 'Incorrect e-mail or password', ru: 'Неверный e-mail или пароль', uk: 'Неправильний e-mail або пароль' },
+  too_many_attempts: { pl: 'Zbyt wiele prób. Spróbuj ponownie za 15 minut', en: 'Too many attempts. Try again in 15 minutes', ru: 'Слишком много попыток. Попробуйте через 15 минут', uk: 'Забагато спроб. Спробуйте за 15 хвилин' },
+  login_required: { pl: 'Zaloguj się', en: 'Please sign in', ru: 'Войдите в аккаунт', uk: 'Увійдіть в акаунт' },
+  password_wrong: { pl: 'Obecne hasło jest nieprawidłowe', en: 'Current password is incorrect', ru: 'Текущий пароль указан неверно', uk: 'Поточний пароль неправильний' },
   server_error: { pl: 'Błąd serwera', en: 'Server error', ru: 'Внутренняя ошибка сервера', uk: 'Внутрішня помилка сервера' },
 };
 const LOCALES = { pl: 'pl-PL', en: 'en-GB', ru: 'ru-RU', uk: 'uk-UA' };
@@ -183,8 +190,11 @@ function isAdmin(req) {
     return data.u === ADMIN_LOGIN && data.exp > Date.now();
   } catch { return false; }
 }
+function setCookie(res, name, value, maxAgeSec, sameSite = 'Strict') {
+  res.append('Set-Cookie', `${name}=${value}; Path=/; HttpOnly; SameSite=${sameSite}; Max-Age=${maxAgeSec}${COOKIE_SECURE ? '; Secure' : ''}`);
+}
 function setSidCookie(res, value, maxAgeSec) {
-  res.append('Set-Cookie', `sid=${value}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAgeSec}${COOKIE_SECURE ? '; Secure' : ''}`);
+  setCookie(res, 'sid', value, maxAgeSec);
 }
 function requireAdmin(req, res, next) {
   if (!isAdmin(req)) return res.status(401).json({ error: 'Требуется вход' });
@@ -207,6 +217,139 @@ function registerFail(ip) {
   if (!rec || rec.until < now) loginAttempts.set(ip, { count: 1, until: now + 15 * 60 * 1000 });
   else rec.count++;
 }
+
+// ---------- Аккаунты покупателей ----------
+
+// Хеш пароля: scrypt с уникальной солью, формат scrypt$<соль>$<хеш>
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16);
+  const hash = crypto.scryptSync(password, salt, 64);
+  return `scrypt$${salt.toString('base64')}$${hash.toString('base64')}`;
+}
+function checkPassword(password, stored) {
+  const [alg, salt, hash] = String(stored).split('$');
+  if (alg !== 'scrypt' || !salt || !hash) return false;
+  const expected = Buffer.from(hash, 'base64');
+  const actual = crypto.scryptSync(String(password), Buffer.from(salt, 'base64'), expected.length);
+  return crypto.timingSafeEqual(actual, expected);
+}
+// Хеш-заглушка, чтобы вход с несуществующим e-mail занимал столько же времени
+const DUMMY_HASH = hashPassword(crypto.randomBytes(16).toString('hex'));
+
+function startUserSession(res, user) {
+  const payload = Buffer.from(JSON.stringify({ id: user.id, v: user.session_ver, exp: Date.now() + USER_SESSION_TTL_MS })).toString('base64url');
+  setCookie(res, 'uid', `${payload}.${sign('user:' + payload)}`, USER_SESSION_TTL_MS / 1000, 'Lax');
+}
+
+// Текущий покупатель по cookie или null
+function currentUser(req) {
+  const token = readCookies(req).uid;
+  if (!token) return null;
+  const [payload, sig] = token.split('.');
+  if (!payload || !sig || !safeEqual(sig, sign('user:' + payload))) return null;
+  try {
+    const data = JSON.parse(Buffer.from(payload, 'base64url').toString());
+    if (!(data.exp > Date.now())) return null;
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(data.id);
+    return user && user.session_ver === data.v ? user : null;
+  } catch { return null; }
+}
+
+const publicUser = (u) => ({ id: u.id, email: u.email, name: u.name, phone: u.phone, address: u.address });
+
+// Изменяющие запросы покупателя — только от нашего JS (защита от CSRF)
+function requireFetch(req) {
+  if (req.get('X-Requested-With') !== 'fetch') throw new HttpError(403, msg(req.lang, 'bad_data'));
+}
+function requireUser(req) {
+  const user = currentUser(req);
+  if (!user) throw new HttpError(401, msg(req.lang, 'login_required'));
+  return user;
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+app.post('/api/auth/register', (req, res) => {
+  requireFetch(req);
+  const lang = req.lang;
+  const b = req.body || {};
+  const email = str(b.email, 100).toLowerCase();
+  const password = typeof b.password === 'string' ? b.password : '';
+  const name = str(b.name, 100);
+  if (!EMAIL_RE.test(email)) throw new HttpError(400, msg(lang, 'email_invalid'));
+  if (password.length < 8 || password.length > 200) throw new HttpError(400, msg(lang, 'password_short'));
+  if (name.length < 2) throw new HttpError(400, msg(lang, 'name_required'));
+  if (db.prepare('SELECT 1 FROM users WHERE email = ?').get(email)) throw new HttpError(409, msg(lang, 'email_taken'));
+  const { lastInsertRowid } = db.prepare('INSERT INTO users (email, password_hash, name, phone) VALUES (?, ?, ?, ?)')
+    .run(email, hashPassword(password), name, str(b.phone, 30));
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(lastInsertRowid);
+  startUserSession(res, user);
+  res.status(201).json({ user: publicUser(user) });
+});
+
+app.post('/api/auth/login', (req, res) => {
+  requireFetch(req);
+  const lang = req.lang;
+  const key = `user:${req.ip}`;
+  if (tooManyAttempts(key)) throw new HttpError(429, msg(lang, 'too_many_attempts'));
+  const email = str(req.body?.email, 100).toLowerCase();
+  const password = String(req.body?.password ?? '');
+  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+  const ok = checkPassword(password, user ? user.password_hash : DUMMY_HASH) && !!user;
+  if (!ok) {
+    registerFail(key);
+    throw new HttpError(401, msg(lang, 'bad_credentials'));
+  }
+  loginAttempts.delete(key);
+  startUserSession(res, user);
+  res.json({ user: publicUser(user) });
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  setCookie(res, 'uid', '', 0, 'Lax');
+  res.json({ ok: true });
+});
+
+app.get('/api/auth/me', (req, res) => {
+  const user = currentUser(req);
+  res.json({ user: user ? publicUser(user) : null });
+});
+
+app.put('/api/account', (req, res) => {
+  requireFetch(req);
+  const lang = req.lang;
+  const user = requireUser(req);
+  const b = req.body || {};
+  const name = str(b.name, 100);
+  const phone = str(b.phone, 30);
+  if (name.length < 2) throw new HttpError(400, msg(lang, 'name_required'));
+  const digits = phone.replace(/\D/g, '');
+  if (phone && (digits.length < 9 || digits.length > 15)) throw new HttpError(400, msg(lang, 'phone_invalid'));
+  db.prepare('UPDATE users SET name = ?, phone = ?, address = ? WHERE id = ?').run(name, phone, str(b.address, 300), user.id);
+  res.json({ user: publicUser(db.prepare('SELECT * FROM users WHERE id = ?').get(user.id)) });
+});
+
+app.post('/api/account/password', (req, res) => {
+  requireFetch(req);
+  const lang = req.lang;
+  const user = requireUser(req);
+  const next = typeof req.body?.new_password === 'string' ? req.body.new_password : '';
+  if (!checkPassword(String(req.body?.current_password ?? ''), user.password_hash)) throw new HttpError(400, msg(lang, 'password_wrong'));
+  if (next.length < 8 || next.length > 200) throw new HttpError(400, msg(lang, 'password_short'));
+  // Новая версия сессии выкидывает аккаунт на всех других устройствах
+  db.prepare('UPDATE users SET password_hash = ?, session_ver = session_ver + 1 WHERE id = ?').run(hashPassword(next), user.id);
+  startUserSession(res, db.prepare('SELECT * FROM users WHERE id = ?').get(user.id));
+  res.json({ ok: true });
+});
+
+app.get('/api/account/orders', (req, res) => {
+  const user = requireUser(req);
+  const orders = db.prepare(`SELECT id, created_at, status, delivery_method, address, delivery_date, delivery_time,
+                                    items_total, delivery_cost, total
+                             FROM orders WHERE user_id = ? ORDER BY id DESC LIMIT 100`).all(user.id);
+  const itemsOf = db.prepare('SELECT name, unit, price, qty, sum FROM order_items WHERE order_id = ? ORDER BY id');
+  res.json(orders.map((o) => ({ ...o, items: itemsOf.all(o.id).map((i) => ({ ...i, name: parseI18n(i.name) })) })));
+});
 
 // ---------- Уведомление в Telegram (необязательно) ----------
 
@@ -264,6 +407,7 @@ app.post('/api/orders', (req, res) => {
   const lang = req.lang;
   const b = req.body || {};
   const s = getSettings();
+  const user = currentUser(req);
   const order = {
     customer_name: str(b.name, 100),
     phone: str(b.phone, 30),
@@ -279,7 +423,8 @@ app.post('/api/orders', (req, res) => {
   if (order.customer_name.length < 2) throw new HttpError(400, msg(lang, 'name_required'));
   const digits = order.phone.replace(/\D/g, '');
   if (digits.length < 9 || digits.length > 15) throw new HttpError(400, msg(lang, 'phone_invalid'));
-  if (order.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(order.email)) throw new HttpError(400, msg(lang, 'email_invalid'));
+  if (!order.email && user) order.email = user.email;
+  if (order.email && !EMAIL_RE.test(order.email)) throw new HttpError(400, msg(lang, 'email_invalid'));
   if (order.delivery_method === 'courier' && order.address.length < 5) throw new HttpError(400, msg(lang, 'address_required'));
   if (!/^\d{4}-\d{2}-\d{2}$/.test(order.delivery_date)) throw new HttpError(400, msg(lang, 'date_required'));
   const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -316,10 +461,10 @@ app.post('/api/orders', (req, res) => {
     const dCost = deliveryCost(order.delivery_method, itemsTotal, s);
 
     const { lastInsertRowid } = db.prepare(`
-      INSERT INTO orders (lang, customer_name, phone, email, delivery_method, address, delivery_date, delivery_time,
+      INSERT INTO orders (user_id, lang, customer_name, phone, email, delivery_method, address, delivery_date, delivery_time,
                           payment_method, comment, items_total, delivery_cost, total)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
-      lang, order.customer_name, order.phone, order.email, order.delivery_method, order.address,
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      user ? user.id : null, lang, order.customer_name, order.phone, order.email, order.delivery_method, order.address,
       order.delivery_date, order.delivery_time, order.payment_method, order.comment,
       itemsTotal, dCost, itemsTotal + dCost,
     );
@@ -328,6 +473,11 @@ app.post('/api/orders', (req, res) => {
     for (const l of lines) {
       insItem.run(lastInsertRowid, l.p.id, l.p.name, l.p.unit, l.p.price, l.qty, l.sum);
       decStock.run(l.qty, l.p.id);
+    }
+    // Запоминаем телефон и адрес в профиле, если они там ещё не заполнены
+    if (user) {
+      db.prepare("UPDATE users SET phone = CASE WHEN phone = '' THEN ? ELSE phone END, address = CASE WHEN address = '' THEN ? ELSE address END WHERE id = ?")
+        .run(order.phone, order.address, user.id);
     }
     return Number(lastInsertRowid);
   });
@@ -460,7 +610,7 @@ admin.post('/upload', express.raw({ type: Object.keys(IMAGE_TYPES), limit: '5mb'
 });
 
 function orderWithItems(id) {
-  const o = db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
+  const o = db.prepare('SELECT o.*, u.email AS user_email FROM orders o LEFT JOIN users u ON u.id = o.user_id WHERE o.id = ?').get(id);
   if (!o) return null;
   o.items = db.prepare('SELECT * FROM order_items WHERE order_id = ? ORDER BY id').all(id)
     .map((i) => ({ ...i, name: pickLang(i.name, ADMIN_LANG) }));
@@ -565,6 +715,7 @@ admin.get('/stats', (req, res) => {
     new_orders: db.prepare("SELECT COUNT(*) AS n FROM orders WHERE status = 'new'").get().n,
     today_orders: db.prepare("SELECT COUNT(*) AS n FROM orders WHERE date(created_at) = date('now')").get().n,
     today_revenue: db.prepare("SELECT COALESCE(SUM(total),0) AS s FROM orders WHERE date(created_at) = date('now') AND status != 'cancelled'").get().s,
+    customers: db.prepare('SELECT COUNT(*) AS n FROM users').get().n,
     out_of_stock: db.prepare('SELECT COUNT(*) AS n FROM products WHERE is_active = 1 AND stock < min_qty').get().n,
   });
 });
