@@ -65,7 +65,7 @@ $('#adminTabs').addEventListener('click', (e) => {
   if (!btn) return;
   document.querySelectorAll('#adminTabs .tab').forEach((t) => t.classList.toggle('active', t === btn));
   document.querySelectorAll('[data-panel]').forEach((p) => { p.hidden = p.dataset.panel !== btn.dataset.tab; });
-  ({ orders: loadOrders, products: loadProducts, settings: loadSettings })[btn.dataset.tab]().catch((ex) => toast(ex.message, true));
+  ({ orders: loadOrders, feedback: loadFeedback, products: loadProducts, settings: loadSettings })[btn.dataset.tab]().catch((ex) => toast(ex.message, true));
 });
 
 async function loadStats() {
@@ -76,6 +76,8 @@ async function loadStats() {
     <div class="stat"><b>${money(s.today_revenue)}</b><span>выручка сегодня</span></div>
     <div class="stat"><b>${s.out_of_stock}</b><span>товаров закончилось</span></div>
     <div class="stat"><b>${s.customers}</b><span>зарегистрированных покупателей</span></div>`;
+  $('#fbCount').textContent = s.new_feedback;
+  $('#fbCount').hidden = !s.new_feedback;
 }
 
 // ---------- Заказы ----------
@@ -155,6 +157,42 @@ async function openOrder(id) {
   };
   openLayer($('#orderModal'));
 }
+
+// ---------- Сообщения ----------
+
+async function loadFeedback() {
+  const list = await adminApi('/api/admin/feedback');
+  $('#feedbackList').innerHTML = list.length ? list.map((f) => `
+    <article class="fb${f.status === 'new' ? ' fb--new' : ''}">
+      <div class="fb__head">
+        <b>${esc(f.name)}</b>
+        <a href="mailto:${esc(f.email)}">${esc(f.email)}</a>
+        ${f.phone ? `<a href="tel:${esc(f.phone)}">${esc(f.phone)}</a>` : ''}
+        <span class="muted small">${fmtDate(f.created_at)} · ${esc(LANG_NAMES[f.lang] || f.lang)}${f.user_email ? ' · есть аккаунт' : ''}</span>
+        <span class="status status--${f.status === 'new' ? 'new' : 'done'}">${f.status === 'new' ? 'Новое' : 'Обработано'}</span>
+      </div>
+      <p class="fb__text">${esc(f.message)}</p>
+      <div class="fb__actions">
+        <button class="btn btn--sm" type="button" data-fb-toggle="${f.id}" data-status="${f.status === 'new' ? 'done' : 'new'}">${f.status === 'new' ? 'Отметить обработанным' : 'Вернуть в новые'}</button>
+        <button class="btn btn--sm btn--danger" type="button" data-fb-del="${f.id}" data-armed="0">Удалить</button>
+      </div>
+    </article>`).join('') : '<p class="muted">Сообщений пока нет.</p>';
+}
+
+$('#feedbackList').addEventListener('click', async (e) => {
+  const tg = e.target.closest('[data-fb-toggle]');
+  const del = e.target.closest('[data-fb-del]');
+  try {
+    if (tg) {
+      await adminApi(`/api/admin/feedback/${tg.dataset.fbToggle}`, { method: 'PATCH', body: { status: tg.dataset.status } });
+    } else if (del) {
+      if (!confirm('Удалить сообщение?')) return;
+      await adminApi(`/api/admin/feedback/${del.dataset.fbDel}`, { method: 'DELETE' });
+      toast('Сообщение удалено');
+    } else return;
+    await Promise.all([loadFeedback(), loadStats()]);
+  } catch (ex) { toast(ex.message, true); }
+});
 
 // ---------- Товары ----------
 
@@ -287,7 +325,10 @@ sForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   try {
     const f = Object.fromEntries(new FormData(sForm));
-    const body = { shop_name: f.shop_name, shop_phone: f.shop_phone, pickup_address: f.pickup_address, delivery_slots: f.delivery_slots };
+    const body = {
+      shop_name: f.shop_name, shop_phone: f.shop_phone, pickup_address: f.pickup_address, delivery_slots: f.delivery_slots,
+      company_name: f.company_name, company_address: f.company_address, company_nip: f.company_nip, contact_email: f.contact_email,
+    };
     for (const k of MONEY_KEYS) body[k] = toGrosze(f[k]);
     body.delivery_note = Object.fromEntries(LANGS.map((l) => [l, f[`delivery_note_${l}`]]));
     await adminApi('/api/admin/settings', { method: 'PUT', body });

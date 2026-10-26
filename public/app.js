@@ -37,6 +37,9 @@ function renderAll() {
   $('#infoCourier').textContent = t('courier_info', { note: tr(settings.delivery_note), cost: money(settings.delivery_cost), free });
   $('#infoPickup').textContent = t('pickup_info', { addr: settings.pickup_address });
   $('#pickupAddr').textContent = t('pickup_addr', { addr: settings.pickup_address });
+  $('#contactPhone').textContent = settings.shop_phone;
+  $('#contactEmail').textContent = settings.contact_email || '—';
+  $('#contactAddress').textContent = settings.pickup_address;
   renderProducts();
   renderCart();
   renderAccountUi();
@@ -260,6 +263,34 @@ form.addEventListener('submit', async (e) => {
     err.textContent = ex.message;
     err.hidden = false;
     if (ex.status === 409) await syncCart();
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// ---------- Обратная связь ----------
+
+const fbForm = $('#feedbackForm');
+fbForm.addEventListener('focusin', () => {
+  if (!currentUser) return;
+  if (!fbForm.name.value) fbForm.name.value = currentUser.name;
+  if (!fbForm.email.value) fbForm.email.value = currentUser.email;
+  if (!fbForm.phone.value) fbForm.phone.value = currentUser.phone;
+});
+fbForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const err = $('#fbError');
+  err.hidden = true;
+  const btn = $('#fbSubmit');
+  btn.disabled = true;
+  try {
+    const data = Object.fromEntries(new FormData(fbForm));
+    await api('/api/feedback', { method: 'POST', body: { ...data, consent: $('#fbConsent').checked } });
+    fbForm.reset();
+    toast(t('sent'));
+  } catch (ex) {
+    err.textContent = ex.message;
+    err.hidden = false;
   } finally {
     btn.disabled = false;
   }

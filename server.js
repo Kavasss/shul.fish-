@@ -53,6 +53,9 @@ const MESSAGES = {
   too_many_attempts: { pl: 'Zbyt wiele prób. Spróbuj ponownie za 15 minut', en: 'Too many attempts. Try again in 15 minutes', ru: 'Слишком много попыток. Попробуйте через 15 минут', uk: 'Забагато спроб. Спробуйте за 15 хвилин' },
   login_required: { pl: 'Zaloguj się', en: 'Please sign in', ru: 'Войдите в аккаунт', uk: 'Увійдіть в акаунт' },
   password_wrong: { pl: 'Obecne hasło jest nieprawidłowe', en: 'Current password is incorrect', ru: 'Текущий пароль указан неверно', uk: 'Поточний пароль неправильний' },
+  consent_required: { pl: 'Zaakceptuj politykę prywatności', en: 'Please accept the privacy policy', ru: 'Примите политику конфиденциальности', uk: 'Прийміть політику конфіденційності' },
+  message_short: { pl: 'Wiadomość jest za krótka', en: 'The message is too short', ru: 'Сообщение слишком короткое', uk: 'Повідомлення занадто коротке' },
+  too_many_messages: { pl: 'Wysłano zbyt wiele wiadomości. Spróbuj później', en: 'Too many messages sent. Please try later', ru: 'Отправлено слишком много сообщений. Попробуйте позже', uk: 'Надіслано забагато повідомлень. Спробуйте пізніше' },
   server_error: { pl: 'Błąd serwera', en: 'Server error', ru: 'Внутренняя ошибка сервера', uk: 'Внутрішня помилка сервера' },
 };
 const LOCALES = { pl: 'pl-PL', en: 'en-GB', ru: 'ru-RU', uk: 'uk-UA' };
@@ -73,7 +76,7 @@ app.use((req, res, next) => {
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',
     'Referrer-Policy': 'same-origin',
-    'Content-Security-Policy': "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self'; frame-ancestors 'none'",
+    'Content-Security-Policy': "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self'; frame-ancestors 'none'",
   });
   // Язык покупателя: заголовок X-Lang от нашего JS
   const lang = req.get('X-Lang');
@@ -133,6 +136,7 @@ function publicSettings(s) {
     pickup_address: s.pickup_address,
     delivery_slots: deliverySlots(s),
     delivery_note: parseI18n(s.delivery_note),
+    company_name: s.company_name, company_address: s.company_address, company_nip: s.company_nip, contact_email: s.contact_email,
     currency: 'PLN',
     languages: LANGS,
   };
@@ -279,6 +283,7 @@ app.post('/api/auth/register', (req, res) => {
   if (!EMAIL_RE.test(email)) throw new HttpError(400, msg(lang, 'email_invalid'));
   if (password.length < 8 || password.length > 200) throw new HttpError(400, msg(lang, 'password_short'));
   if (name.length < 2) throw new HttpError(400, msg(lang, 'name_required'));
+  if (b.consent !== true) throw new HttpError(400, msg(lang, 'consent_required'));
   if (db.prepare('SELECT 1 FROM users WHERE email = ?').get(email)) throw new HttpError(409, msg(lang, 'email_taken'));
   const { lastInsertRowid } = db.prepare('INSERT INTO users (email, password_hash, name, phone) VALUES (?, ?, ?, ?)')
     .run(email, hashPassword(password), name, str(b.phone, 30));
@@ -342,6 +347,16 @@ app.post('/api/account/password', (req, res) => {
   res.json({ ok: true });
 });
 
+// Удаление аккаунта (право на удаление данных). Заказы остаются для бухгалтерии, но отвязываются от аккаунта.
+app.delete('/api/account', (req, res) => {
+  requireFetch(req);
+  const user = requireUser(req);
+  if (!checkPassword(String(req.body?.password ?? ''), user.password_hash)) throw new HttpError(400, msg(req.lang, 'password_wrong'));
+  db.prepare('DELETE FROM users WHERE id = ?').run(user.id);
+  setCookie(res, 'uid', '', 0, 'Lax');
+  res.json({ ok: true });
+});
+
 app.get('/api/account/orders', (req, res) => {
   const user = requireUser(req);
   const orders = db.prepare(`SELECT id, created_at, status, delivery_method, address, delivery_date, delivery_time,
@@ -351,25 +366,40 @@ app.get('/api/account/orders', (req, res) => {
   res.json(orders.map((o) => ({ ...o, items: itemsOf.all(o.id).map((i) => ({ ...i, name: parseI18n(i.name) })) })));
 });
 
+// ---------- Обратная связь ----------
+
+const feedbackLimits = new Map(); // не больше 5 сообщений в час с одного IP
+app.post('/api/feedback', (req, res) => {
+  requireFetch(req);
+  const lang = req.lang;
+  const b = req.body || {};
+  // Скрытое поле-ловушка: люди его не видят, боты заполняют
+  if (b.website) return res.status(201).json({ ok: true });
+  const fb = {
+    name: str(b.name, 100), email: str(b.email, 100).toLowerCase(), phone: str(b.phone, 30), message: str(b.message, 3000),
+  };
+  if (fb.name.length < 2) throw new HttpError(400, msg(lang, 'name_required'));
+  if (!EMAIL_RE.test(fb.email)) throw new HttpError(400, msg(lang, 'email_invalid'));
+  if (fb.message.length < 5) throw new HttpError(400, msg(lang, 'message_short'));
+  if (b.consent !== true) throw new HttpError(400, msg(lang, 'consent_required'));
+  const now = Date.now();
+  const rec = feedbackLimits.get(req.ip);
+  if (rec && rec.until > now && rec.count >= 5) throw new HttpError(429, msg(lang, 'too_many_messages'));
+  if (!rec || rec.until < now) feedbackLimits.set(req.ip, { count: 1, until: now + 60 * 60 * 1000 });
+  else rec.count++;
+  const user = currentUser(req);
+  const { lastInsertRowid } = db.prepare('INSERT INTO feedback (user_id, lang, name, email, phone, message) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(user ? user.id : null, lang, fb.name, fb.email, fb.phone, fb.message);
+  notifyTelegramText(`✉️ Сообщение №${lastInsertRowid} (${lang.toUpperCase()})\n${fb.name}, ${fb.email}${fb.phone ? ', ' + fb.phone : ''}\n\n${fb.message}`);
+  res.status(201).json({ ok: true });
+});
+
 // ---------- Уведомление в Telegram (необязательно) ----------
 
-async function notifyTelegram(orderId) {
+async function notifyTelegramText(text) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chat = process.env.TELEGRAM_CHAT_ID;
   if (!token || !chat) return;
-  const o = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
-  const items = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(orderId);
-  const text = [
-    `🐟 Новый заказ №${o.id} (язык: ${o.lang.toUpperCase()})`,
-    `${o.customer_name}, ${o.phone}`,
-    o.delivery_method === 'courier' ? `Доставка: ${o.address}` : 'Самовывоз',
-    `${o.delivery_date} ${o.delivery_time}`.trim(),
-    '',
-    ...items.map((i) => `• ${pickLang(i.name, ADMIN_LANG)} — ${i.qty} ${UNITS_RU[i.unit]} = ${fmtMoney(i.sum, ADMIN_LANG)}`),
-    '',
-    `Итого: ${fmtMoney(o.total, ADMIN_LANG)}`,
-    o.comment ? `Комментарий: ${o.comment}` : '',
-  ].join('\n');
   try {
     await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST',
@@ -379,6 +409,22 @@ async function notifyTelegram(orderId) {
   } catch (e) {
     console.error('Не удалось отправить уведомление в Telegram:', e.message);
   }
+}
+
+async function notifyTelegram(orderId) {
+  const o = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+  const items = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(orderId);
+  notifyTelegramText([
+    `🐟 Новый заказ №${o.id} (язык: ${o.lang.toUpperCase()})`,
+    `${o.customer_name}, ${o.phone}`,
+    o.delivery_method === 'courier' ? `Доставка: ${o.address}` : 'Самовывоз',
+    `${o.delivery_date} ${o.delivery_time}`.trim(),
+    '',
+    ...items.map((i) => `• ${pickLang(i.name, ADMIN_LANG)} — ${i.qty} ${UNITS_RU[i.unit]} = ${fmtMoney(i.sum, ADMIN_LANG)}`),
+    '',
+    `Итого: ${fmtMoney(o.total, ADMIN_LANG)}`,
+    o.comment ? `Комментарий: ${o.comment}` : '',
+  ].join('\n'));
 }
 
 // ---------- Публичное API ----------
@@ -683,6 +729,29 @@ admin.get('/orders-export.csv', (req, res) => {
   res.send(csv);
 });
 
+admin.get('/feedback', (req, res) => {
+  res.json(db.prepare(`SELECT f.*, u.email AS user_email FROM feedback f LEFT JOIN users u ON u.id = f.user_id
+                       ORDER BY (f.status = 'new') DESC, f.id DESC LIMIT 500`).all());
+});
+
+admin.patch('/feedback/:id', (req, res) => {
+  const b = req.body || {};
+  const id = Number(req.params.id);
+  if (!db.prepare('SELECT 1 FROM feedback WHERE id = ?').get(id)) throw new HttpError(404, 'Сообщение не найдено');
+  if (b.status !== undefined) {
+    if (!['new', 'done'].includes(b.status)) throw new HttpError(400, 'Неверный статус');
+    db.prepare('UPDATE feedback SET status = ? WHERE id = ?').run(b.status, id);
+  }
+  if (b.admin_note !== undefined) db.prepare('UPDATE feedback SET admin_note = ? WHERE id = ?').run(str(b.admin_note, 2000), id);
+  res.json(db.prepare('SELECT * FROM feedback WHERE id = ?').get(id));
+});
+
+admin.delete('/feedback/:id', (req, res) => {
+  const r = db.prepare('DELETE FROM feedback WHERE id = ?').run(Number(req.params.id));
+  if (!r.changes) throw new HttpError(404, 'Сообщение не найдено');
+  res.json({ ok: true });
+});
+
 admin.get('/settings', (req, res) => {
   const s = getSettings();
   for (const k of I18N_SETTINGS) s[k] = parseI18n(s[k]);
@@ -716,6 +785,7 @@ admin.get('/stats', (req, res) => {
     today_orders: db.prepare("SELECT COUNT(*) AS n FROM orders WHERE date(created_at) = date('now')").get().n,
     today_revenue: db.prepare("SELECT COALESCE(SUM(total),0) AS s FROM orders WHERE date(created_at) = date('now') AND status != 'cancelled'").get().s,
     customers: db.prepare('SELECT COUNT(*) AS n FROM users').get().n,
+    new_feedback: db.prepare("SELECT COUNT(*) AS n FROM feedback WHERE status = 'new'").get().n,
     out_of_stock: db.prepare('SELECT COUNT(*) AS n FROM products WHERE is_active = 1 AND stock < min_qty').get().n,
   });
 });
@@ -726,6 +796,7 @@ app.use('/api/admin', admin);
 
 app.use('/uploads', express.static(UPLOAD_DIR, { maxAge: '30d' }));
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
+app.get('/privacy', (req, res) => res.sendFile(path.join(__dirname, 'public', 'privacy.html')));
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/api', (req, res) => res.status(404).json({ error: msg(req.lang, 'not_found') }));

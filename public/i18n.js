@@ -229,3 +229,49 @@ Object.assign(I18N.uk, {
   logged_in: 'Ви увійшли', logged_out: 'Ви вийшли', signed_up: 'Акаунт створено',
   status_new: 'Нове', status_confirmed: 'Підтверджене', status_delivering: 'Доставляється', status_done: 'Виконане', status_cancelled: 'Скасоване',
 });
+
+// Обратная связь, политика конфиденциальности, удаление аккаунта
+Object.assign(I18N.pl, {
+  nav_contact: 'Kontakt', contact_title: 'Napisz do nas',
+  contact_lead: 'Pytanie o produkt, zamówienie hurtowe albo uwaga do dostawy — odpowiemy na e-mail w ciągu jednego dnia roboczego.',
+  phone_opt: 'Telefon', message: 'Wiadomość*', send: 'Wyślij wiadomość', sent: 'Dziękujemy! Wiadomość została wysłana.',
+  consent_reg: 'Akceptuję', consent_fb: 'Wyrażam zgodę na przetwarzanie moich danych w celu odpowiedzi na wiadomość zgodnie z',
+  privacy_acc: 'politykę prywatności', privacy_ins: 'polityką prywatności', privacy: 'Polityka prywatności',
+  order_privacy: 'Składając zamówienie, przekazujesz nam dane potrzebne do jego realizacji. Szczegóły:',
+  contacts: 'Kontakt', delete_account: 'Usuń konto',
+  delete_account_text: 'Konto i dane profilu zostaną usunięte. Zamówienia zostaną zachowane bez powiązania z kontem, wyłącznie na potrzeby księgowe. Wpisz hasło, aby potwierdzić.',
+  deleted: 'Konto zostało usunięte',
+});
+Object.assign(I18N.en, {
+  nav_contact: 'Contact', contact_title: 'Get in touch',
+  contact_lead: 'A question about a product, a wholesale order or delivery feedback — we reply by e-mail within one business day.',
+  phone_opt: 'Phone', message: 'Message*', send: 'Send message', sent: 'Thank you! Your message has been sent.',
+  consent_reg: 'I accept the', consent_fb: 'I agree to the processing of my data to answer my message, in line with the',
+  privacy_acc: 'privacy policy', privacy_ins: 'privacy policy', privacy: 'Privacy policy',
+  order_privacy: 'By placing an order you share the data we need to fulfil it. Details:',
+  contacts: 'Contact', delete_account: 'Delete account',
+  delete_account_text: 'Your account and profile data will be deleted. Orders are kept without a link to the account, for accounting only. Enter your password to confirm.',
+  deleted: 'Account deleted',
+});
+Object.assign(I18N.ru, {
+  nav_contact: 'Контакты', contact_title: 'Напишите нам',
+  contact_lead: 'Вопрос о товаре, оптовый заказ или замечание по доставке — ответим на e-mail в течение одного рабочего дня.',
+  phone_opt: 'Телефон', message: 'Сообщение*', send: 'Отправить сообщение', sent: 'Спасибо! Сообщение отправлено.',
+  consent_reg: 'Я принимаю', consent_fb: 'Я согласен(на) на обработку моих данных для ответа на сообщение в соответствии с',
+  privacy_acc: 'политику конфиденциальности', privacy_ins: 'политикой конфиденциальности', privacy: 'Политика конфиденциальности',
+  order_privacy: 'Оформляя заказ, вы передаёте нам данные, нужные для его выполнения. Подробнее:',
+  contacts: 'Контакты', delete_account: 'Удалить аккаунт',
+  delete_account_text: 'Аккаунт и данные профиля будут удалены. Заказы сохранятся без привязки к аккаунту, только для бухгалтерии. Введите пароль для подтверждения.',
+  deleted: 'Аккаунт удалён',
+});
+Object.assign(I18N.uk, {
+  nav_contact: 'Контакти', contact_title: 'Напишіть нам',
+  contact_lead: 'Питання про товар, гуртове замовлення чи зауваження щодо доставки — відповімо на e-mail протягом одного робочого дня.',
+  phone_opt: 'Телефон', message: 'Повідомлення*', send: 'Надіслати повідомлення', sent: 'Дякуємо! Повідомлення надіслано.',
+  consent_reg: 'Я приймаю', consent_fb: 'Я погоджуюся на обробку моїх даних для відповіді на повідомлення відповідно до',
+  privacy_acc: 'політику конфіденційності', privacy_ins: 'політики конфіденційності', privacy: 'Політика конфіденційності',
+  order_privacy: 'Оформлюючи замовлення, ви передаєте нам дані, потрібні для його виконання. Детальніше:',
+  contacts: 'Контакти', delete_account: 'Видалити акаунт',
+  delete_account_text: 'Акаунт і дані профілю буде видалено. Замовлення збережуться без прив’язки до акаунта, лише для бухгалтерії. Введіть пароль для підтвердження.',
+  deleted: 'Акаунт видалено',
+});

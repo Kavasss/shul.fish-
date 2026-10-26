@@ -79,6 +79,20 @@ CREATE TABLE IF NOT EXISTS users (
   created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Сообщения из формы обратной связи
+CREATE TABLE IF NOT EXISTS feedback (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+  user_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  lang       TEXT    NOT NULL DEFAULT 'pl',
+  name       TEXT    NOT NULL,
+  email      TEXT    NOT NULL,
+  phone      TEXT    NOT NULL DEFAULT '',
+  message    TEXT    NOT NULL,
+  status     TEXT    NOT NULL DEFAULT 'new' CHECK (status IN ('new','done')),
+  admin_note TEXT    NOT NULL DEFAULT ''
+);
+
 CREATE TABLE IF NOT EXISTS settings (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
@@ -100,6 +114,11 @@ const DEFAULT_SETTINGS = {
   min_order: '5000',
   pickup_address: 'ul. Rybna 1, 00-001 Warszawa',
   delivery_slots: '10:00–13:00\n13:00–16:00\n16:00–19:00\n19:00–22:00',
+  // Реквизиты продавца — подставляются в политику конфиденциальности
+  company_name: '',
+  company_address: '',
+  company_nip: '',
+  contact_email: '',
   delivery_note: JSON.stringify({
     pl: 'Dostarczamy codziennie na terenie miasta. Ryby pakujemy w torby termiczne z lodem.',
     en: 'We deliver daily within the city. Fish is packed in thermal bags with ice.',

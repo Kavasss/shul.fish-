@@ -6,9 +6,7 @@
   <meta name="robots" content="noindex, nofollow">
   <title>Shul.Fish — админ-панель</title>
   <link rel="icon" href="/img/logo.svg" type="image/svg+xml">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;700&display=swap">
+  <link rel="stylesheet" href="/fonts/fonts.css">
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/admin.css">
 </head>
@@ -42,6 +40,7 @@
 
       <nav class="tabs" id="adminTabs">
         <button class="tab active" data-tab="orders" type="button">Заказы</button>
+        <button class="tab" data-tab="feedback" type="button">Сообщения <span class="tab-count" id="fbCount" hidden></span></button>
         <button class="tab" data-tab="products" type="button">Товары и наличие</button>
         <button class="tab" data-tab="settings" type="button">Доставка и настройки</button>
       </nav>
@@ -58,6 +57,11 @@
             <tbody id="ordersBody"></tbody>
           </table>
         </div>
+      </section>
+
+      <!-- Сообщения из формы обратной связи -->
+      <section data-panel="feedback" hidden>
+        <div class="feedback-list" id="feedbackList"></div>
       </section>
 
       <!-- Товары -->
@@ -86,6 +90,15 @@
           <label>Минимальная сумма заказа, zł<input name="min_order" type="number" min="0" step="0.01"></label>
           <label>Адрес самовывоза<input name="pickup_address" maxlength="300"></label>
           <label>Интервалы доставки (каждый с новой строки)<textarea name="delivery_slots" rows="4"></textarea></label>
+          <fieldset class="langs">
+            <legend>Реквизиты продавца <span class="muted small">(показываются в политике конфиденциальности — заполните обязательно)</span></legend>
+            <label class="plain">Название компании / ИП<input name="company_name" maxlength="200" placeholder="np. Jan Kowalski Shul.Fish"></label>
+            <label class="plain">Юридический адрес<input name="company_address" maxlength="300" placeholder="ul. …, 00-000 Warszawa"></label>
+            <div class="form__row">
+              <label class="plain">NIP<input name="company_nip" maxlength="20"></label>
+              <label class="plain">E-mail для связи<input name="contact_email" type="email" maxlength="100"></label>
+            </div>
+          </fieldset>
           <fieldset class="langs">
             <legend>Описание доставки на сайте</legend>
             <label><span class="lang-tag">PL</span><textarea name="delivery_note_pl" rows="2"></textarea></label>

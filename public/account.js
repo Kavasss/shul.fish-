@@ -58,7 +58,9 @@ $('#authForm').addEventListener('submit', async (e) => {
   btn.disabled = true;
   try {
     const url = authMode === 'register' ? '/api/auth/register' : '/api/auth/login';
-    const body = authMode === 'register' ? data : { email: data.email, password: data.password };
+    const body = authMode === 'register'
+      ? { ...data, consent: $('#authConsent').checked }
+      : { email: data.email, password: data.password };
     currentUser = (await api(url, { method: 'POST', body })).user;
     e.target.reset();
     closeLayer($('#authModal'));
@@ -147,6 +149,18 @@ $('#passwordForm').addEventListener('submit', async (e) => {
     await api('/api/account/password', { method: 'POST', body: Object.fromEntries(new FormData(e.target)) });
     e.target.reset();
     toast(t('password_changed'));
+  } catch (ex) { toast(ex.message, true); }
+});
+
+$('#deleteForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  try {
+    await api('/api/account', { method: 'DELETE', body: { password: $('#delPassword').value } });
+    e.target.reset();
+    currentUser = null;
+    closeLayer($('#accountModal'));
+    renderAccountUi();
+    toast(t('deleted'));
   } catch (ex) { toast(ex.message, true); }
 });
 

@@ -44,3 +44,14 @@
 .langs legend { font-size: 14px; font-weight: 700; padding: 0 4px; }
 .langs label { grid-template-columns: 44px 1fr; align-items: start; }
 .lang-tag { display: inline-grid; place-items: center; height: 42px; border-radius: 10px; background: #eef2f6; font-size: 12px; font-weight: 800; color: var(--muted); }
+.tab-count { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; margin-left: 4px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 12px; }
+.feedback-list { display: grid; gap: 12px; }
+.fb { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px 18px; display: grid; gap: 10px; border: 1px solid rgba(7,19,31,.04); }
+.fb--new { background: #f3f9fe; border-color: #cfe6f7; }
+.fb__head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+.fb__head a { color: var(--sea); font-weight: 600; }
+.fb__head .status { margin-left: auto; }
+.status--done { background: #e3f4ea; color: var(--ok); }
+.fb__text { margin: 0; white-space: pre-line; overflow-wrap: anywhere; }
+.fb__actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.langs label.plain { grid-template-columns: none; }

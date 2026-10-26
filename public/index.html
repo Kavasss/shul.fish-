@@ -7,9 +7,7 @@
   <meta name="description" content="Shul.Fish: ryby świeże, wędzone i solone z dostawą do domu. Fresh, smoked and salted fish delivered.">
   <meta name="theme-color" content="#07131f">
   <link rel="icon" href="/img/logo.svg" type="image/svg+xml">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;700&display=swap">
+  <link rel="stylesheet" href="/fonts/fonts.css">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -22,6 +20,7 @@
       <nav class="nav">
         <a href="#catalog" data-i18n="nav_catalog">Katalog</a>
         <a href="#delivery" data-i18n="nav_delivery">Dostawa</a>
+        <a href="#contact" data-i18n="nav_contact">Kontakt</a>
       </nav>
       <a class="header__phone" id="shopPhone" href="#"></a>
       <div class="lang" id="langSwitch" role="group" aria-label="Language"></div>
@@ -83,11 +82,40 @@
         <div class="info__card"><span class="info__icon">💳</span><h3 data-i18n="payment"></h3><p data-i18n="payment_text"></p></div>
       </div>
     </section>
+
+    <section class="contact" id="contact">
+      <div class="contact__intro">
+        <h2 data-i18n="contact_title"></h2>
+        <p class="muted" data-i18n="contact_lead"></p>
+        <dl class="contact__list">
+          <dt data-i18n="phone_opt"></dt><dd id="contactPhone"></dd>
+          <dt>E-mail</dt><dd id="contactEmail"></dd>
+          <dt data-i18n="pickup"></dt><dd id="contactAddress"></dd>
+        </dl>
+      </div>
+      <form class="form contact__form" id="feedbackForm" novalidate>
+        <div class="form__row">
+          <label><span data-i18n="name"></span><input name="name" id="fbName" maxlength="100" autocomplete="name" required></label>
+          <label><span>E-mail*</span><input name="email" id="fbEmail" type="email" maxlength="100" autocomplete="email" required></label>
+        </div>
+        <label><span data-i18n="phone_opt"></span><input name="phone" id="fbPhone" type="tel" maxlength="30" autocomplete="tel" data-i18n-placeholder="phone_ph"></label>
+        <label><span data-i18n="message"></span><textarea name="message" id="fbMessage" rows="4" maxlength="3000" required></textarea></label>
+        <input class="hp" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+        <label class="consent"><input type="checkbox" name="consent" id="fbConsent">
+          <span><span data-i18n="consent_fb"></span> <a href="/privacy" target="_blank" data-i18n="privacy_ins"></a>.</span></label>
+        <p class="error" id="fbError" hidden></p>
+        <button class="btn btn--primary btn--lg" type="submit" id="fbSubmit" data-i18n="send"></button>
+      </form>
+    </section>
   </main>
 
   <footer class="footer">
     <div class="container footer__inner">
       <span class="logo__text">Shul<span class="logo__dot">.</span>Fish</span>
+      <nav class="footer__links">
+        <a href="#contact" data-i18n="contacts"></a>
+        <a href="/privacy" data-i18n="privacy"></a>
+      </nav>
       <span class="muted">© <span id="year"></span> <span id="footerName"></span></span>
     </div>
   </footer>
@@ -150,6 +178,7 @@
           <div class="row"><span data-i18n="delivery"></span><span id="sumDelivery"></span></div>
           <div class="row row--total"><span data-i18n="total"></span><span id="sumTotal"></span></div>
         </div>
+        <p class="muted small"><span data-i18n="order_privacy"></span> <a href="/privacy" target="_blank" data-i18n="privacy_acc"></a>.</p>
         <p class="error" id="orderError" hidden></p>
         <button class="btn btn--accent btn--block btn--lg" type="submit" id="submitOrder" data-i18n="confirm"></button>
       </div>
@@ -180,6 +209,8 @@
         <label><span data-i18n="password"></span><input name="password" id="authPassword" type="password" maxlength="200" required>
           <span class="muted small field-hint" data-reg-only data-i18n="password_hint"></span></label>
         <label data-reg-only><span data-i18n="phone"></span><input name="phone" id="authPhone" type="tel" maxlength="30" autocomplete="tel" data-i18n-placeholder="phone_ph"></label>
+        <label class="consent" data-reg-only><input type="checkbox" name="consent" id="authConsent">
+          <span><span data-i18n="consent_reg"></span> <a href="/privacy" target="_blank" data-i18n="privacy_acc"></a>.</span></label>
         <p class="error" id="authError" hidden></p>
         <button class="btn btn--accent btn--block btn--lg" type="submit" id="authSubmit"></button>
         <button class="link-btn auth-switch" type="button" id="authSwitch"></button>
@@ -219,6 +250,14 @@
             <button class="btn" type="submit" data-i18n="change_password"></button>
           </form>
           <button class="btn btn--danger" type="button" id="logoutBtn" data-i18n="logout"></button>
+          <form class="form form--flat danger-zone" id="deleteForm" novalidate>
+            <h3 data-i18n="delete_account"></h3>
+            <p class="muted small" data-i18n="delete_account_text"></p>
+            <div class="danger-zone__row">
+              <input name="password" id="delPassword" type="password" autocomplete="current-password" data-i18n-placeholder="current_password">
+              <button class="btn btn--danger" type="submit" data-i18n="delete_account"></button>
+            </div>
+          </form>
         </section>
       </div>
     </div>
