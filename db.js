@@ -114,10 +114,11 @@ const DEFAULT_SETTINGS = {
   min_order: '5000',
   pickup_address: 'ul. Rybna 1, 00-001 Warszawa',
   delivery_slots: '10:00–13:00\n13:00–16:00\n16:00–19:00\n19:00–22:00',
-  // Реквизиты продавца — подставляются в политику конфиденциальности
-  company_name: '',
-  company_address: '',
-  company_nip: '',
+  // Реквизиты продавца (публичные данные из CEIDG) — показываются в подвале сайта и в политике конфиденциальности
+  company_name: 'Oleh Shuliak SHUL-FISH',
+  company_address: 'ul. Żurawia 47/49 lok. 4, 00-680 Warszawa',
+  company_nip: '1251791175',
+  company_regon: '542299723',
   contact_email: '',
   delivery_note: JSON.stringify({
     pl: 'Dostarczamy codziennie na terenie miasta. Ryby pakujemy w torby termiczne z lodem.',
@@ -131,6 +132,9 @@ const I18N_SETTINGS = ['delivery_note'];
 
 const insertSetting = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)');
 for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) insertSetting.run(k, v);
+// Незаполненные реквизиты в существующей базе заполняем значениями по умолчанию
+const fillEmpty = db.prepare("UPDATE settings SET value = ? WHERE key = ? AND value = ''");
+for (const k of ['company_name', 'company_address', 'company_nip', 'company_regon']) fillEmpty.run(DEFAULT_SETTINGS[k], k);
 
 // Демонстрационные товары при первом запуске (можно удалить в админке)
 const { n } = db.prepare('SELECT COUNT(*) AS n FROM products').get();

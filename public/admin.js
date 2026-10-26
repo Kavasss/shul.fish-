@@ -327,7 +327,7 @@ sForm.addEventListener('submit', async (e) => {
     const f = Object.fromEntries(new FormData(sForm));
     const body = {
       shop_name: f.shop_name, shop_phone: f.shop_phone, pickup_address: f.pickup_address, delivery_slots: f.delivery_slots,
-      company_name: f.company_name, company_address: f.company_address, company_nip: f.company_nip, contact_email: f.contact_email,
+      company_name: f.company_name, company_address: f.company_address, company_nip: f.company_nip, company_regon: f.company_regon, contact_email: f.contact_email,
     };
     for (const k of MONEY_KEYS) body[k] = toGrosze(f[k]);
     body.delivery_note = Object.fromEntries(LANGS.map((l) => [l, f[`delivery_note_${l}`]]));

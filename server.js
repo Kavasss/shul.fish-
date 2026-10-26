@@ -136,7 +136,7 @@ function publicSettings(s) {
     pickup_address: s.pickup_address,
     delivery_slots: deliverySlots(s),
     delivery_note: parseI18n(s.delivery_note),
-    company_name: s.company_name, company_address: s.company_address, company_nip: s.company_nip, contact_email: s.contact_email,
+    company_name: s.company_name, company_address: s.company_address, company_nip: s.company_nip, company_regon: s.company_regon, contact_email: s.contact_email,
     currency: 'PLN',
     languages: LANGS,
   };

@@ -40,6 +40,11 @@ function renderAll() {
   $('#contactPhone').textContent = settings.shop_phone;
   $('#contactEmail').textContent = settings.contact_email || '—';
   $('#contactAddress').textContent = settings.pickup_address;
+  // Данные продавца в подвале — обязательны для интернет-магазина по польскому закону
+  $('#footerLegal').textContent = [
+    settings.company_name, settings.company_address,
+    settings.company_nip && `NIP ${settings.company_nip}`, settings.company_regon && `REGON ${settings.company_regon}`,
+  ].filter(Boolean).join(' · ');
   renderProducts();
   renderCart();
   renderAccountUi();

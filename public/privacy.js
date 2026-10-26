@@ -9,7 +9,7 @@ const POLICY = {
     note: '',
     sections: [
       ['1. Administrator danych', [
-        'Administratorem Twoich danych osobowych jest {company}, {address}, NIP: {nip} (dalej: „Sklep”).',
+        'Administratorem Twoich danych osobowych jest {company}, {address}, NIP: {nip}, REGON: {regon} (dalej: „Sklep”).',
         'Kontakt w sprawach danych osobowych: e-mail {email}, telefon {phone} lub formularz kontaktowy na stronie.',
       ]],
       ['2. Jakie dane przetwarzamy', [
@@ -60,7 +60,7 @@ const POLICY = {
     note: 'This is a translation. In case of discrepancies, the Polish version prevails.',
     sections: [
       ['1. Data controller', [
-        'The controller of your personal data is {company}, {address}, tax ID (NIP): {nip} (the “Shop”).',
+        'The controller of your personal data is {company}, {address}, tax ID (NIP): {nip}, REGON: {regon} (the “Shop”).',
         'Contact for personal data matters: e-mail {email}, phone {phone} or the contact form on this website.',
       ]],
       ['2. What data we process', [
@@ -111,7 +111,7 @@ const POLICY = {
     note: 'Это перевод. При расхождениях действует польская версия.',
     sections: [
       ['1. Администратор данных', [
-        'Администратор ваших персональных данных — {company}, {address}, NIP: {nip} (далее — «Магазин»).',
+        'Администратор ваших персональных данных — {company}, {address}, NIP: {nip}, REGON: {regon} (далее — «Магазин»).',
         'Связаться по вопросам персональных данных: e-mail {email}, телефон {phone} или форма обратной связи на сайте.',
       ]],
       ['2. Какие данные мы обрабатываем', [
@@ -162,7 +162,7 @@ const POLICY = {
     note: 'Це переклад. У разі розбіжностей діє польська версія.',
     sections: [
       ['1. Адміністратор даних', [
-        'Адміністратором ваших персональних даних є {company}, {address}, NIP: {nip} (далі — «Магазин»).',
+        'Адміністратором ваших персональних даних є {company}, {address}, NIP: {nip}, REGON: {regon} (далі — «Магазин»).',
         'Зв’язок щодо персональних даних: e-mail {email}, телефон {phone} або форма зворотного зв’язку на сайті.',
       ]],
       ['2. Які дані ми обробляємо', [
@@ -220,6 +220,7 @@ async function renderPolicy() {
     company: s.company_name || s.shop_name || dash,
     address: s.company_address || s.pickup_address || dash,
     nip: s.company_nip || dash,
+    regon: s.company_regon || dash,
     email: s.contact_email || dash,
     phone: s.shop_phone || dash,
     date: new Date(POLICY_DATE + 'T00:00:00').toLocaleDateString(LOCALES[LANG]),
