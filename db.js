@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS settings (
 
 // Настройки по умолчанию (меняются в админ-панели)
 const DEFAULT_SETTINGS = {
-  shop_name: 'Шуль Фиш',
+  shop_name: 'Shul.Fish',
   shop_phone: '+7 (900) 000-00-00',
   delivery_cost: '300',
   free_delivery_from: '5000',

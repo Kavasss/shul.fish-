@@ -16,7 +16,6 @@ function saveCart() {
 async function init() {
   [settings, products] = await Promise.all([api('/api/settings'), api('/api/products')]);
   document.title = `${settings.shop_name} — свежая, копчёная и солёная рыба с доставкой`;
-  $('#shopName').textContent = settings.shop_name;
   $('#footerName').textContent = settings.shop_name;
   $('#year').textContent = new Date().getFullYear();
   $('#shopPhone').textContent = settings.shop_phone;
@@ -46,18 +45,17 @@ function renderProducts() {
              <span>${fmtQty(inCart.qty)} ${esc(p.unit)}</span>
              <button type="button" data-act="inc" aria-label="Больше">+</button>
            </div>`
-        : `<button class="btn btn--primary" type="button" data-add="${p.id}">В корзину</button>`;
+        : `<button class="btn btn--primary btn--add" type="button" data-add="${p.id}">
+             <span aria-hidden="true">+</span> В корзину</button>`;
     return `
-      <article class="card${p.available ? '' : ' card--out'}">
+      <article class="card${p.available ? '' : ' card--out'}${inCart ? ' card--in' : ''}">
         <div class="card__img">${p.image ? `<img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy">` : ''}
           <span class="card__cat card__cat--${p.category}">${esc(settings.categories[p.category])}</span></div>
         <div class="card__body">
           <h3>${esc(p.name)}</h3>
-          <p class="muted small">${esc(p.description)}</p>
-          <div class="card__foot">
-            <div class="price">${money(p.price)}<small> / ${esc(p.unit)}</small></div>
-            ${action}
-          </div>
+          <p class="card__desc">${esc(p.description)}</p>
+          <div class="price">${money(p.price)}<small> / ${esc(p.unit)}</small></div>
+          <div class="card__foot">${action}</div>
         </div>
       </article>`;
   }).join('');

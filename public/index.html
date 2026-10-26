@@ -3,50 +3,88 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Свежая, копчёная и солёная рыба с доставкой</title>
-  <meta name="description" content="Интернет-магазин рыбы: свежая, копчёная и солёная рыба с доставкой на дом.">
+  <title>Shul.Fish — свежая, копчёная и солёная рыба с доставкой</title>
+  <meta name="description" content="Shul.Fish: свежая, копчёная и солёная рыба с доставкой на дом.">
+  <meta name="theme-color" content="#07131f">
+  <link rel="icon" href="/img/logo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;700&display=swap">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
   <header class="header">
     <div class="container header__inner">
-      <a href="/" class="logo"><span class="logo__icon">🐟</span> <span id="shopName">Рыбный магазин</span></a>
+      <a href="/" class="logo" aria-label="На главную">
+        <img class="logo__mark" src="/img/logo.svg" alt="" width="34" height="34">
+        <span class="logo__text">Shul<span class="logo__dot">.</span>Fish</span>
+      </a>
+      <nav class="nav">
+        <a href="#catalog">Каталог</a>
+        <a href="#delivery">Доставка</a>
+      </nav>
       <a class="header__phone" id="shopPhone" href="#"></a>
-      <button class="cart-btn" id="cartBtn" type="button">
-        Корзина <span class="cart-btn__count" id="cartCount">0</span>
+      <button class="cart-btn" id="cartBtn" type="button" aria-label="Корзина">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6h15l-1.5 9h-12z"/><path d="M6 6 5 3H2"/><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/></svg>
+        <span class="cart-btn__label">Корзина</span>
+        <span class="cart-btn__count" id="cartCount" hidden>0</span>
       </button>
     </div>
   </header>
 
   <section class="hero">
+    <div class="hero__glow" aria-hidden="true"></div>
+    <div class="container hero__inner">
+      <div class="hero__text">
+        <span class="eyebrow">Fresh · Smoked · Salted</span>
+        <h1>Рыба, которую <span class="grad">хочется готовить</span></h1>
+        <p class="hero__lead">Свежий улов, собственное копчение и засолка. Привезём к двери в удобный интервал.</p>
+        <div class="hero__cta">
+          <a class="btn btn--accent btn--lg" href="#catalog">Перейти в каталог</a>
+          <span class="pill" id="deliveryInfo"></span>
+        </div>
+      </div>
+      <div class="hero__art" aria-hidden="true">
+        <img src="/img/hero.svg" alt="">
+      </div>
+    </div>
     <div class="container">
-      <h1>Рыба свежая, копчёная и солёная</h1>
-      <p>Собственное копчение и засолка. Доставка на дом в удобное время.</p>
-      <p class="hero__delivery" id="deliveryInfo"></p>
+      <ul class="features">
+        <li><b>Каждый день</b><span>свежие поставки</span></li>
+        <li><b>Ольховая щепа</b><span>натуральное копчение</span></li>
+        <li><b>Термопакеты</b><span>холодовая цепь до двери</span></li>
+        <li><b>При получении</b><span>оплата картой или наличными</span></li>
+      </ul>
     </div>
   </section>
 
-  <main class="container">
-    <nav class="tabs" id="tabs">
-      <button class="tab active" data-cat="all" type="button">Все</button>
-      <button class="tab" data-cat="fresh" type="button">Свежая</button>
-      <button class="tab" data-cat="smoked" type="button">Копчёная</button>
-      <button class="tab" data-cat="salted" type="button">Солёная</button>
-    </nav>
+  <main class="container" id="catalog">
+    <div class="section-head">
+      <h2>Каталог</h2>
+      <nav class="tabs" id="tabs">
+        <button class="tab active" data-cat="all" type="button">Все</button>
+        <button class="tab" data-cat="fresh" type="button">Свежая</button>
+        <button class="tab" data-cat="smoked" type="button">Копчёная</button>
+        <button class="tab" data-cat="salted" type="button">Солёная</button>
+      </nav>
+    </div>
     <div class="grid" id="products"><p class="muted">Загрузка…</p></div>
 
     <section class="info" id="delivery">
       <h2>Доставка и оплата</h2>
       <div class="info__grid">
-        <div><h3>🚚 Курьером</h3><p id="infoCourier"></p></div>
-        <div><h3>🏪 Самовывоз</h3><p id="infoPickup"></p></div>
-        <div><h3>💳 Оплата</h3><p>Наличными или картой при получении.</p></div>
+        <div class="info__card"><span class="info__icon">🚚</span><h3>Курьером</h3><p id="infoCourier"></p></div>
+        <div class="info__card"><span class="info__icon">📍</span><h3>Самовывоз</h3><p id="infoPickup"></p></div>
+        <div class="info__card"><span class="info__icon">💳</span><h3>Оплата</h3><p>Наличными или картой при получении заказа.</p></div>
       </div>
     </section>
   </main>
 
   <footer class="footer">
-    <div class="container">© <span id="year"></span> <span id="footerName"></span></div>
+    <div class="container footer__inner">
+      <span class="logo__text">Shul<span class="logo__dot">.</span>Fish</span>
+      <span class="muted">© <span id="year"></span> <span id="footerName"></span></span>
+    </div>
   </footer>
 
   <!-- Корзина -->
@@ -58,9 +96,9 @@
       </div>
       <div class="drawer__body" id="cartItems"></div>
       <div class="drawer__foot">
-        <div class="row"><span>Товары</span><b id="cartTotal">0 ₽</b></div>
+        <div class="row row--total"><span>Товары</span><b id="cartTotal">0 ₽</b></div>
         <p class="muted small" id="cartHint"></p>
-        <button class="btn btn--primary btn--block" id="checkoutBtn" type="button">Оформить заказ</button>
+        <button class="btn btn--accent btn--block btn--lg" id="checkoutBtn" type="button">Оформить заказ</button>
       </div>
     </div>
   </aside>
@@ -74,13 +112,15 @@
       </div>
       <div class="form">
         <label>Имя*<input name="name" required maxlength="100" autocomplete="name"></label>
-        <label>Телефон*<input name="phone" required type="tel" maxlength="30" autocomplete="tel" placeholder="+7 900 000-00-00"></label>
-        <label>E-mail<input name="email" type="email" maxlength="100" autocomplete="email"></label>
+        <div class="form__row">
+          <label>Телефон*<input name="phone" required type="tel" maxlength="30" autocomplete="tel" placeholder="+7 900 000-00-00"></label>
+          <label>E-mail<input name="email" type="email" maxlength="100" autocomplete="email"></label>
+        </div>
 
-        <fieldset class="radio-group">
+        <fieldset class="segmented">
           <legend>Способ получения</legend>
-          <label><input type="radio" name="delivery_method" value="courier" checked> Доставка курьером</label>
-          <label><input type="radio" name="delivery_method" value="pickup"> Самовывоз</label>
+          <label><input type="radio" name="delivery_method" value="courier" checked><span>Доставка курьером</span></label>
+          <label><input type="radio" name="delivery_method" value="pickup"><span>Самовывоз</span></label>
         </fieldset>
         <p class="muted small" id="pickupAddr" hidden></p>
 
@@ -91,10 +131,10 @@
           <label id="timeField">Время*<select name="delivery_time"></select></label>
         </div>
 
-        <fieldset class="radio-group">
+        <fieldset class="segmented">
           <legend>Оплата при получении</legend>
-          <label><input type="radio" name="payment_method" value="cash" checked> Наличными</label>
-          <label><input type="radio" name="payment_method" value="card"> Картой</label>
+          <label><input type="radio" name="payment_method" value="cash" checked><span>Наличными</span></label>
+          <label><input type="radio" name="payment_method" value="card"><span>Картой</span></label>
         </fieldset>
 
         <label>Комментарий<textarea name="comment" rows="2" maxlength="1000" placeholder="Например: разделать рыбу, позвонить за час"></textarea></label>
@@ -105,7 +145,7 @@
           <div class="row row--total"><span>Итого</span><span id="sumTotal"></span></div>
         </div>
         <p class="error" id="orderError" hidden></p>
-        <button class="btn btn--primary btn--block" type="submit" id="submitOrder">Подтвердить заказ</button>
+        <button class="btn btn--accent btn--block btn--lg" type="submit" id="submitOrder">Подтвердить заказ</button>
       </div>
     </form>
   </div>
@@ -113,6 +153,7 @@
   <!-- Успех -->
   <div class="modal" id="success" aria-hidden="true">
     <div class="modal__panel modal__panel--small">
+      <div class="success-icon">✓</div>
       <h2>Спасибо за заказ!</h2>
       <p id="successText"></p>
       <button class="btn btn--primary btn--block" data-close type="button">Хорошо</button>
